@@ -325,4 +325,5 @@ export default {
   "… en {n} meer": "… und {n} weitere",
   "① Snelle statusknoppen": "① Schnellstatus-Knöpfe",
   "② Meldingsregel": "② Hinweiszeile",
+  "Volgorde aanpassen": "Reihenfolge ändern",
 };

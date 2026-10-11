@@ -218,10 +218,10 @@ export function renderWizard(p, pop) {
         ${sumRow("climate", t("Eén kaart voor alle klimaatapparaten."), t("Apparaten"), hm.climates.map(e => e.room.name))}
         ${sumRow("media", t("Eén kaart voor alle spelers."), t("Spelers"), hm.media.map(e => name(hass, e)))}
         ${box(capchips(t("Overige kaarten"), more.map(([k, l]) => chip(l, on(k), () => focus(k, { draft: { ...d, shown: { ...d.shown, home: toggle(sh, k) } } })))))}
-        ${order.length > 1 ? html`<div class="wzh">${t("Volgorde")}</div>${sortable(order, l => upd({ order: { ...d.order, home: l }, shown: { ...d.shown, home: l } }))}` : nothing}`,
+        ${order.length > 1 ? html`<div class="wzh wzhb"><span>${t("Volgorde")}</span><button class="wzlink" @click=${() => p.openPopup({ ...pop, draft: d, orderOpen: !pop.orderOpen })}>${pop.orderOpen ? t("Verbergen") : t("Volgorde aanpassen")}</button></div>${pop.orderOpen ? sortable(order, l => upd({ order: { ...d.order, home: l }, shown: { ...d.shown, home: l } }, { orderOpen: true })) : nothing}` : nothing}`,
       right: html`${rt(t("Voorvertoning · jouw startpagina"), t("Toont: {n}", { n: fLabel }))}
         <div class="wzpv">${stage(pv, { ring: [f], h: mobile() ? undefined : 760 })}</div>
-        ${f.startsWith("sum:") && on(f) ? html`${rt(t("Na het tikken: elke lamp apart schakelen"))}${popBox(pv, { type: "sum", kind: f.slice(4), limit: 4 })}` : nothing}
+        ${f.startsWith("sum:") && on(f) ? html`${rt(t("Na het tikken: elke lamp apart schakelen"))}${popBox(pv, { type: "sum", kind: f.slice(4), limit: 2 })}` : nothing}
         ${note(t("Tikken schakelt niets, maar opent dit venster; daar schakel je elke lamp apart of alles tegelijk. Alle aantallen volgen jouw huis: bij 8 thermostaten zijn het 8 regels."))}` }); }
 
   /* ---- 3 · Rooms ---- */

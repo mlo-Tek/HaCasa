@@ -15,7 +15,7 @@ export class Fit extends LitElement {
   _fit() { const k = this.clientWidth / this.w; if (k && Math.abs(k - this._k) > 0.0005) this._k = k; }
   render() {
     const k = this._k || 0.0001;
-    this.style.height = `${Math.round(this.h * k)}px`;
+    this.style.height = `${Math.ceil(this.h * k)}px`;
     return html`<div class="stage" style="width:${this.w}px;height:${this.h}px;transform:scale(${k})"><slot></slot></div>`;
   }
 }

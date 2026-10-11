@@ -140,6 +140,8 @@ export const featureStyles = `
   .wz .chips button.off{opacity:.5}
   .wzh{font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;opacity:.65;margin:16px 0 6px}
   .wzh.first{margin-top:0}
+  .wzhb{display:flex;justify-content:space-between;align-items:center}
+  .wzlink{border:0;background:none;color:#fff;font:inherit;font-size:12px;font-weight:600;text-transform:none;letter-spacing:0;text-decoration:underline;cursor:pointer;opacity:.85;padding:4px 0}
   .wzh small{display:block;text-transform:none;letter-spacing:0;font-weight:500;margin-top:2px}
   .wznote{font-size:12px;opacity:.7;line-height:1.45;margin:8px 0 0}
   .wzrt{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase}

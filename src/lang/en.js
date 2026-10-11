@@ -307,4 +307,5 @@ export default {
   "… en {n} meer": "… and {n} more",
   "① Snelle statusknoppen": "① Quick status buttons",
   "② Meldingsregel": "② Notice line",
+  "Volgorde aanpassen": "Change order",
 };
