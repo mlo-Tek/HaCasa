@@ -222,6 +222,20 @@ export const styles = css`
   .card.climate .rail b::after{content:attr(data-v)}
   .card.climate .rail b{position:absolute;left:3px;right:3px;height:calc(var(--rw) - 6px);bottom:calc(var(--v) * 1% - (var(--rw) - 6px) / 2);border-radius:50%;background:#fff;color:#1d1d1f;display:grid;place-items:center;font-size:calc(11 * var(--u));font-weight:800;letter-spacing:-.3px;pointer-events:none;transition:bottom .15s}
   .card.climate .rail em{position:absolute;left:0;right:0;height:26px;display:grid;place-items:center;font-style:normal;font-size:15px;font-weight:700;color:var(--fg-2);cursor:pointer}
+  /* tint by what the device(s) do: red = heating, blue = cooling, yellow = drying; bands when several differ (see climateTint) */
+  .card.climate.tinted{background-image:var(--tint);border-color:var(--tint-line,var(--line-on))}
+  .card.climate .lbl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .card.climate.group{padding-right:var(--cp);padding-bottom:calc(var(--cp) + 26px)}
+  .card.climate.group .c{right:var(--cp);display:flex;gap:4px;align-items:center}
+  .card.climate.group .c .chip{display:inline-flex;align-items:center;gap:1px;padding:2px 7px 2px 4px;border-radius:999px;background:rgba(0,0,0,.22);font-size:11px;font-weight:700;letter-spacing:0}
+  .card.climate.group .c .chip ha-icon{--mdc-icon-size:13px}
+  .card.climate.group .s small{font-size:.5em;font-weight:600;opacity:.65;margin-left:2px}
+  .card.climate .units{position:absolute;left:var(--cp);right:var(--cp);bottom:var(--cp);display:flex;flex-wrap:wrap;gap:7px;align-items:center;min-height:var(--bt)}
+  .card.climate .units .dot{width:13px;height:13px;border-radius:50%;background:rgba(255,255,255,.4);box-sizing:border-box}
+  .card.climate .units .dot.u-heat{background:#ff6a55;box-shadow:0 0 0 3px rgba(255,106,85,.3)}
+  .card.climate .units .dot.u-cool{background:#4da3ff;box-shadow:0 0 0 3px rgba(77,163,255,.3)}
+  .card.climate .units .dot.u-dry{background:#f0b429;box-shadow:0 0 0 3px rgba(240,180,41,.3)}
+  .card.climate .units .dot.u-off{background:transparent;border:2px solid rgba(255,255,255,.4)}
   .card.climate .rail em.up{top:2px} .card.climate .rail em.dn{bottom:2px}
   .card.climate:not(.on) .rail i{background:rgba(255,255,255,.12)}
   .card.climate:not(.on) .rail b{background:rgba(255,255,255,.6)}
@@ -383,6 +397,11 @@ export const styles = css`
   .popup li{border-radius:var(--r-sm);display:grid;grid-template-columns:30px 1fr max-content;gap:16px;align-items:center;padding:14px 16px;background:rgba(255,255,255,.08);border:1px solid var(--line);font-size:15px;font-weight:600}
   .popup li.on{background:rgba(255,255,255,.3);border-color:var(--line-on)}
   .popup li.tap{cursor:pointer}
+  .popup.heat{background-image:linear-gradient(160deg,rgba(255,98,76,.30),transparent 60%)} .popup.cool{background-image:linear-gradient(160deg,rgba(70,150,255,.30),transparent 60%)} .popup.dry{background-image:linear-gradient(160deg,rgba(232,168,24,.30),transparent 60%)}
+  .popup li.on.heat,.popup li.on.cool,.popup li.on.dry{box-shadow:0 0 0 2px rgba(255,255,255,.75)}
+  .popup li.heat{background-image:linear-gradient(90deg,rgba(255,98,76,.26),rgba(255,98,76,.06));border-color:rgba(255,98,76,.4)}
+  .popup li.cool{background-image:linear-gradient(90deg,rgba(70,150,255,.26),rgba(70,150,255,.06));border-color:rgba(70,150,255,.4)}
+  .popup li.dry{background-image:linear-gradient(90deg,rgba(232,168,24,.26),rgba(232,168,24,.06));border-color:rgba(232,168,24,.4)}
   .popup li small{display:block;font-size:12px;font-weight:500;opacity:.7;margin-top:2px}
   .popup li .st{font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;opacity:.8;white-space:nowrap}
   .popup li ha-icon{--mdc-icon-size:26px}
@@ -476,6 +495,8 @@ export const styles = css`
     .card .subc{display:none}
     .card.climate{--bt:26px;--rw:34px;padding-right:calc(var(--rw) + var(--cp) + 10px);padding-bottom:var(--cp)}
     .card.climate .ctl.row{display:none}
+    .card.climate .units{bottom:var(--cp);gap:6px} .card.climate .units .dot{width:11px;height:11px}
+    .card.climate.group{padding-right:var(--cp);padding-bottom:calc(var(--cp) + 22px)} .card.climate.group .c{right:var(--cp)}
     .card.climate .c{right:calc(var(--rw) + var(--cp) + 8px)}
     .card.climate .rail em{display:none}
     .card.climate .rail b{font-size:9px}

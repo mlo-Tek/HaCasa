@@ -2,7 +2,7 @@
 import { t, locale } from "./i18n.js";
 import { html, nothing } from "lit";
 import { classMap } from "lit/directives/class-map.js";
-import { icon, isOn, unavailable, num, relTime, shortDate, sinceText } from "./util.js";
+import { icon, isOn, unavailable, num, relTime, shortDate, sinceText, climateAct, climateTint } from "./util.js";
 import { name, deviceName } from "./model.js";
 import { applianceState, applianceEnd, eventWhen, nextEvent } from "./extras2.js";
 import { spark } from "./extras3.js";
@@ -259,6 +259,29 @@ export function coverCard(p, e) {
   </div>`;
 }
 
+const ACT_RGB = { heat: "255,98,76", cool: "70,150,255", dry: "232,168,24" };
+const ACT_ICON = { heat: "mdi:fire", cool: "mdi:snowflake", dry: "mdi:water-percent" };
+
+/** Home card for several climate devices: how many run, as a tinted card (red = heating, blue = cooling, yellow = drying,
+ *  banded when they differ) with one dot per device. A tap opens the popup with the device list. */
+export function climateGroupCard(p, list, title = t("Verwarming")) {
+  const up = list.filter(x => !unavailable(x)), acts = up.map(climateAct), running = up.filter((_, i) => acts[i]);
+  const tint = climateTint(acts.filter(Boolean));
+  const nm = x => cardCfg(p, x.entity_id).name || x.attributes.friendly_name || x.entity_id;
+  const kinds = ["heat", "cool", "dry"].map(k => [k, acts.filter(a => a === k).length]).filter(([, n]) => n);
+  const idle = !kinds.length ? (up.every(x => x.state === "off") ? t("Uit") : t("Rust")) : "";
+  const dot = x => { const a = climateAct(x); return html`<i class=${classMap({ dot: true, ["u-" + (a || "idle")]: true, "u-off": x.state === "off" || unavailable(x) })} title=${`${nm(x)}${num(x.attributes.current_temperature) != null ? " · " + num(x.attributes.current_temperature).toFixed(1) + "°" : ""}`}></i>`; };
+  return html`<div class=${classMap({ card: true, climate: true, group: true, on: !!running.length, tinted: !!tint })} style=${tint ? `--tint:${tint};--tint-line:${kinds.length === 1 ? `rgba(${ACT_RGB[kinds[0][0]]},.4)` : "var(--line-on)"}` : nothing}
+      ${pressDir(p, { tap: () => p.openPopup({ type: "climate", s: running[0] || list[0] }) })}>
+    <div class="i">${ico("mdi:radiator", "heating")}</div>
+    <div class="c">${idle || kinds.map(([k, n]) => html`<span class=${"chip " + k}><ha-icon icon=${ACT_ICON[k]}></ha-icon>${n}</span>`)}</div>
+    <div class="s big">${running.length}<small>/${up.length}</small></div>
+    <div class="n">${title}</div>
+    <div class="units">${list.map(dot)}</div>
+    <div class="lbl">${running.map(nm).join(", ")}</div>
+  </div>`;
+}
+
 export function climateCard(p, s, title = t("Verwarming")) {
   if (!s) return nothing;
   title = cardCfg(p, s.entity_id).name || title;
@@ -274,7 +297,8 @@ export function climateCard(p, s, title = t("Verwarming")) {
   const action = s.attributes.hvac_action ? ({ heating: t("Verwarmt"), cooling: t("Koelt"), idle: t("Rust"), off: t("Uit"), drying: t("Droogt"), fan: t("Ventileert") }[s.attributes.hvac_action] || s.attributes.hvac_action) : on ? ({ heat: t("Verwarmen"), cool: t("Koelen"), auto: t("Auto"), heat_cool: t("Auto"), dry: t("Drogen"), fan_only: t("Ventileren") }[s.state] || s.state) : t("Uit");
   const lo = num(s.attributes.min_temp) ?? 7, hi = num(s.attributes.max_temp) ?? 35, v = target != null ? Math.max(0, Math.min(100, (target - lo) / (hi - lo) * 100)) : 0;
   const setTo = val => p.call("climate", "set_temperature", { entity_id: s.entity_id, temperature: +val.toFixed(1) });
-  return html`<div class=${classMap({ card: true, climate: true, on, unavailable: un })}
+  const act = climateAct(s), tint = climateTint(act ? [act] : []);
+  return html`<div class=${classMap({ card: true, climate: true, on, unavailable: un, tinted: !!tint })} style=${tint ? `--tint:${tint};--tint-line:rgba(${ACT_RGB[act]},.4)` : nothing}
       ${pressDir(p, { tap: () => p.openPopup({ type: "climate", s }) })}>
     ${un ? ua() : nothing}
     <div class="i">${icoFor(p, s.entity_id, "mdi:radiator", "heating")}</div>
@@ -498,7 +522,10 @@ export function pickAttention(list) {
 /* ---------- home cards: [{ key, label, tpl }] so the page config can hide/reorder them ---------- */
 export function homeCards(p, h) {
   const cards = [], add = (key, label, tpl) => cards.push({ key, label, tpl });
-  if (h.climate) add("climate", t("Thermostaat"), climateCard(p, h.climate));
+  // several climate devices and none picked in the settings: one overview card (a picked one stays a single thermostat card)
+  const cl = (h.climates || []).filter(x => !isHidden(p, x.entity_id));
+  if (cl.length > 1 && !p.config.home?.climate) add("climate", t("Thermostaat"), climateGroupCard(p, cl));
+  else if (h.climate) add("climate", t("Thermostaat"), climateCard(p, h.climate));
   // media players that are playing or paused (two at most), unless switched off in the settings
   if (p.config.home?.mediaHome !== false) for (const m of p.rooms.flatMap(r => r.ents.media).filter(e => ["playing", "paused"].includes(e.state?.state) && !isHidden(p, e.id)).slice(0, 2)) add(m.id, label(p, m), mediaCard(p, m));
   if (h.attention.length) add("attention", t("Aandacht"), html`<div class="card list" ${pressDir(p, { tap: () => p.openPopup({ type: "attention" }) })}>

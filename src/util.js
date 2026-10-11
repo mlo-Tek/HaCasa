@@ -15,6 +15,32 @@ export const domain = id => id.split(".")[0];
 export const num = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : null; };
 export const isOn = s => !!s && ["on", "open", "playing", "heating", "cooling", "home"].includes(s.state);
 export const unavailable = s => !s || s.state === "unavailable" || s.state === "unknown";
+/** What a climate device is doing right now: "heat", "cool", "dry", or null (idle, off, fan only, offline).
+ *  Uses hvac_action; without it, falls back to the mode plus the current and target temperature. */
+export function climateAct(s) {
+  if (!s || unavailable(s) || s.state === "off") return null;
+  const a = s.attributes?.hvac_action;
+  if (a) return { heating: "heat", cooling: "cool", drying: "dry" }[a] || null;
+  if (s.state === "dry") return "dry";
+  const tg = num(s.attributes?.temperature), cu = num(s.attributes?.current_temperature);
+  if (tg == null || cu == null) return null;
+  return s.state === "heat" && cu < tg ? "heat" : s.state === "cool" && cu > tg ? "cool" : null;
+}
+/** Card/popup tint for a list of active climate actions (one entry per running device): one colour as a soft wash,
+ *  several as diagonal bands in proportion to how many devices run each. Returns "" when nothing is running. */
+const TINT = { heat: "255,98,76", cool: "70,150,255", dry: "232,168,24" };
+export function climateTint(acts) {
+  const kinds = ["heat", "cool", "dry"].map(k => [k, acts.filter(a => a === k).length]).filter(([, n]) => n);
+  if (!kinds.length) return "";
+  if (kinds.length === 1) return `linear-gradient(150deg,rgba(${TINT[kinds[0][0]]},.3),rgba(${TINT[kinds[0][0]]},.1))`;
+  const total = kinds.reduce((a, [, n]) => a + n, 0), stops = [];
+  let at = 0;
+  kinds.forEach(([k, n], i) => {
+    const from = at, to = at + n / total * 100; at = to;
+    stops.push(`rgba(${TINT[k]},.26) ${i ? from + 7 : 0}%`, `rgba(${TINT[k]},.26) ${i < kinds.length - 1 ? to - 7 : 100}%`);
+  });
+  return `linear-gradient(135deg,${stops.join(",")})`;
+}
 
 export const comfort = v => v == null ? "" : v < 16 ? t("Erg koud") : v < 18 ? t("Fris") : v < 21 ? t("Comfortabel") : t("Warm");
 export const humidityText = h => h == null ? "" : h < 30 ? t("Luchtvochtigheid is erg droog, {h}%", { h: Math.round(h) })

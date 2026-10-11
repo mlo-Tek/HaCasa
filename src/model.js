@@ -208,6 +208,8 @@ export function buildHome(hass, config, rooms, notifications = []) {
     persons, home: persons.filter(p => p.state === "home").length,
     alarm: pick(hass, h.alarm, "alarm_control_panel"),
     climate: pick(hass, h.climate, "climate"),
+    climates: Object.values(hass.states).filter(s => domain(s.entity_id) === "climate")
+      .sort((a, b) => (a.attributes.friendly_name || a.entity_id).localeCompare(b.attributes.friendly_name || b.entity_id, locale())),
     weather: pick(hass, h.weather, "weather"),
     temp: h.temperature ? num(hass.states[h.temperature]?.state) : (temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null),
     hum: h.humidity ? num(hass.states[h.humidity]?.state) : (hums.length ? hums.reduce((a, b) => a + b, 0) / hums.length : null),

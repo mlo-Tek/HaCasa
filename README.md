@@ -56,7 +56,7 @@ The look comes from [Homio](https://github.com/iamtherufus/Homio) by iamtherufus
   </tr>
   <tr>
     <td><img src="https://raw.githubusercontent.com/damianeickhoff/HaCasa/main/docs/assets/screenshots/popup-light.png" alt="Light popup"><br><sub><b>Light popup</b> · brightness, colour and colour temperature</sub></td>
-    <td><img src="https://raw.githubusercontent.com/damianeickhoff/HaCasa/main/docs/assets/screenshots/popup-climate.png" alt="Climate popup"><br><sub><b>Climate popup</b> · target, modes, presets, every room's temperature</sub></td>
+    <td><img src="https://raw.githubusercontent.com/damianeickhoff/HaCasa/main/docs/assets/screenshots/popup-climate.png" alt="Climate popup"><br><sub><b>Climate popup</b> · target, modes, presets, every climate device or room temperature</sub></td>
   </tr>
   <tr>
     <td><img src="https://raw.githubusercontent.com/damianeickhoff/HaCasa/main/docs/assets/screenshots/sensors.png" alt="Sensors page"><br><sub><b>Sensors</b> · attention first, then every room</sub></td>

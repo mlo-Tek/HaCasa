@@ -1,12 +1,12 @@
 // Popup renderers. `pop` is the panel's open popup descriptor {type, ...}; `p` the panel.
 import { t, locale } from "./i18n.js";
 import { html, nothing } from "lit";
-import { icon, isOn, unavailable, num, relTime, shortDate, domain } from "./util.js";
+import { icon, isOn, unavailable, num, relTime, shortDate, domain, climateAct } from "./util.js";
 import { name } from "./model.js";
 import { PAGES } from "./pages.js";
 import { keypad, bars } from "./extras.js";
 import { eventWhen, timeline, applianceState } from "./extras2.js";
-import { wasteColor, wasteWhen, condText, condIcon, condSvg, label, camStream, attFilter, ATT_FILTERS, mediaView , lightCaps, batteryOf, groupMembers } from "./cards.js";
+import { wasteColor, wasteWhen, condText, condIcon, condSvg, label, camStream, attFilter, ATT_FILTERS, mediaView , lightCaps, batteryOf, groupMembers, cardCfg } from "./cards.js";
 import { roomPresets, snapshot, applyPreset, presetMatches, installUpdate, pendingUpdates } from "./features.js";
 import { modeList, toggleMode } from "./extras3.js";
 import { field, text, select, check } from "./settings.js";
@@ -17,20 +17,20 @@ const close = html`<img src=${icon("close")} alt=${t("sluiten")} data-close>`;
 const entityOf = pop => pop.e?.id || pop.s?.entity_id || pop.st?.id || pop.a?.id || (pop.type === "weather" ? CUR?.p?.home?.weather?.entity_id : null) || null;
 /** header buttons: ⋯ (card options) when the popup belongs to an entity, and close */
 const hbtns = (p, pop) => html`<span class="hb">${entityOf(pop) ? html`<button title=${t("Opties")} @click=${() => p.openPopup({ ...pop, menu: !pop.menu, form: false })}><ha-icon icon="mdi:dots-horizontal"></ha-icon></button>` : nothing}<button data-close title=${t("Sluiten")}><img src=${icon("close")} alt="sluiten" data-close></button></span>`;
-const li = (mdi, label, value, { on = false, sub = "", onclick = null, svg = null, img = null } = {}) =>
-  html`<li class="${on ? "on" : ""} ${onclick ? "tap" : ""}" @click=${onclick || nothing}>${img ? html`<img class="avatar" src=${img} alt="">` : svg ? html`<img class="ico" src=${icon(svg)} alt="">` : html`<ha-icon icon=${mdi}></ha-icon>`}<div>${label}${sub ? html`<small>${sub}</small>` : nothing}</div><span class="st">${value}</span></li>`;
+const li = (mdi, label, value, { on = false, sub = "", onclick = null, svg = null, img = null, cls = "" } = {}) =>
+  html`<li class="${on ? "on" : ""} ${onclick ? "tap" : ""} ${cls}" @click=${onclick || nothing}>${img ? html`<img class="avatar" src=${img} alt="">` : svg ? html`<img class="ico" src=${icon(svg)} alt="">` : html`<ha-icon icon=${mdi}></ha-icon>`}<div>${label}${sub ? html`<small>${sub}</small>` : nothing}</div><span class="st">${value}</span></li>`;
 const range = (label, v, oninput, { min = 0, max = 100, unit = "%" } = {}) =>
   html`<div class="prow"><span>${label}</span><b>${v}${unit}</b><input type="range" min=${min} max=${max} .value=${String(v)} @change=${e => oninput(+e.target.value)}></div>`;
 const modes = (items, cls = "") => html`<div class="modes ${cls}">${items.map(m => html`<button class=${m.on ? "on" : ""} @click=${m.go}>${m.label}</button>`)}</div>`;
 let CUR = null; // current {p, pop} while rendering, so wrap() can draw the header buttons
-const wrap = (title, big, sub, body) => {
+const wrap = (title, big, sub, body, cls = "") => {
   const { p, pop } = CUR;
   if (pop.menu) body = html`<ul class="menu-list">
     ${li("mdi:tune", t("Kaart instellen"), "", { sub: t("naam, icoon, gedrag, verbergen"), onclick: () => p.openPopup({ ...pop, menu: false, form: true }) })}
     ${li("mdi:open-in-new", t("Openen in Home Assistant"), "", { sub: entityOf(pop), onclick: () => { p.popup = null; const id = entityOf(pop); id.startsWith("device:") ? p.goPath(`/config/devices/device/${id.slice(7)}`) : p.moreInfo(id); } })}
   </ul>`;
   else if (pop.form && entityOf(pop)) body = cardForm(p, pop);   // popups without an entity (presets) render their own form
-  return html`<div class="popup"><h2>${title} ${hbtns(p, pop)}</h2><div class="big">${big}</div><div class="sub">${sub}</div>${body}</div>`;
+  return html`<div class=${"popup " + cls}><h2>${title} ${hbtns(p, pop)}</h2><div class="big">${big}</div><div class="sub">${sub}</div>${body}</div>`;
 };
 /** a switch whose device also has a power sensor or an operation-state sensor can be shown as an appliance (bezig / klaar) */
 const applianceCapable = (p, id) => { const dev = p.hass.entities?.[id]?.device_id; return !!dev && Object.values(p.hass.entities).some(e => e.device_id === dev && e.entity_id !== id && (p.hass.states[e.entity_id]?.attributes.device_class === "power" || p.hass.states[e.entity_id]?.attributes.unit_of_measurement === "W" || e.translation_key === "operation_state" || /_operation_state$/.test(e.entity_id))); };
@@ -187,13 +187,25 @@ export function renderPopup(p, pop) {
       const hv = s.attributes.hvac_modes || [], pr = s.attributes.preset_modes || [];
       const lbl = { heat: t("Verwarmen"), cool: t("Koelen"), auto: t("Auto"), heat_cool: t("Auto"), off: t("Uit"), dry: t("Drogen"), fan_only: t("Ventileren") };
       const rooms = p.rooms.filter(r => r.temp != null);
-      return wrap(t("Verwarming"), target != null ? `${target.toFixed(1)}°` : s.state, `${t("Nu {v}", { v: cur != null ? cur.toFixed(1) + "°" : "?" })}${s.attributes.hvac_action ? " · " + ({ heating: t("verwarmen"), idle: t("rust"), cooling: t("koelen"), off: t("uit") }[s.attributes.hvac_action] || s.attributes.hvac_action) : ""}`, html`
+      // With several climate devices the list shows the devices (tap = switch this popup to that one); with a single
+      // thermostat it keeps the room temperatures, where a tap opens the room.
+      const units = Object.values(hass.states).filter(x => domain(x.entity_id) === "climate")
+        .sort((a, b) => (a.attributes.friendly_name || a.entity_id).localeCompare(b.attributes.friendly_name || b.entity_id, locale()));
+      const ACT = { heating: t("verwarmen"), idle: t("rust"), cooling: t("koelen"), off: t("uit"), drying: t("Droogt"), fan: t("Ventileert") };
+      const unitRow = x => {
+        const un = unavailable(x), tg = num(x.attributes.temperature), cu = num(x.attributes.current_temperature);
+        const mode = x.attributes.hvac_action ? (ACT[x.attributes.hvac_action] || x.attributes.hvac_action) : (lbl[x.state] || x.state);
+        const val = un ? t("Onbereikbaar") : x.state === "off" ? t("Uit") : tg != null ? `${tg.toFixed(1)}°` : mode;
+        const sub = un ? "" : [cu != null ? t("Nu {v}", { v: cu.toFixed(1) + "°" }) : "", x.state === "off" ? "" : mode].filter(Boolean).join(" · ");
+        return li("mdi:radiator", cardCfg(p, x.entity_id).name || x.attributes.friendly_name || x.entity_id, val, { svg: "heating", on: x.entity_id === s.entity_id, sub, cls: climateAct(x) || "", onclick: () => p.openPopup({ type: "climate", s: x }) });
+      };
+      return wrap(t("Verwarming"), target != null ? `${target.toFixed(1)}°` : s.state, `${t("Nu {v}", { v: cur != null ? cur.toFixed(1) + "°" : "?" })}${s.attributes.hvac_action ? " · " + (ACT[s.attributes.hvac_action] || s.attributes.hvac_action) : ""}`, html`
         <div class="therm"><div style="font-size:15px;font-weight:600">${t("Doeltemperatuur")}</div>
           <button @click=${() => call("set_temperature", { temperature: +(target + step).toFixed(1) })}><img src=${icon("increase")} alt=""></button>
           <button class="down" @click=${() => call("set_temperature", { temperature: +(target - step).toFixed(1) })}><img src=${icon("increase")} alt=""></button></div>
         ${hv.length > 1 ? modes(hv.map(m => ({ label: lbl[m] || m, on: s.state === m, go: () => call("set_hvac_mode", { hvac_mode: m }) })), hv.length === 2 ? "n2" : hv.length === 3 ? "n3" : "") : nothing}
         ${pr.length ? modes(pr.slice(0, 4).map(m => ({ label: m, on: s.attributes.preset_mode === m, go: () => call("set_preset_mode", { preset_mode: m }) })), pr.length === 2 ? "n2" : pr.length === 3 ? "n3" : "") : nothing}
-        <ul>${rooms.map(r => li("mdi:thermometer", r.name, `${r.temp.toFixed(1)}°`, { svg: "heating", onclick: () => p.go(r) }))}</ul>`);
+        <ul>${units.length > 1 ? units.map(unitRow) : rooms.map(r => li("mdi:thermometer", r.name, `${r.temp.toFixed(1)}°`, { svg: "heating", onclick: () => p.go(r) }))}</ul>`, climateAct(s) || "");
     }
     case "sensor": {
       const s = hass.states[pop.e.id], on = isOn(s);
