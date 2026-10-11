@@ -28,22 +28,29 @@ export function quickRow(p) {
 }
 
 /* ---------- doorbell / motion: open the camera when a trigger fires ---------- */
+/** every rule "this trigger opens that camera": the classic doorbell setting plus the per-camera detections from the setup (home.cams[].popup) */
+export function camRules(p) {
+  const bell = p.config.home?.doorbell, secs = bell?.seconds || 30, rules = [];
+  if (bell?.camera && bell.triggers?.length) rules.push({ camera: bell.camera, triggers: bell.triggers, seconds: secs });
+  for (const c of p.config.home?.cams || []) if (c.camera && c.popup?.length) rules.push({ camera: c.camera, triggers: c.popup, seconds: secs });
+  return rules;
+}
 export function watchTriggers(p) {
-  const cfg = p.config.home?.doorbell;
-  if (!cfg?.triggers?.length || !cfg.camera) { p._trigPrev = null; return; }
+  const rules = camRules(p), ids = [...new Set(rules.flatMap(r => r.triggers))];
+  if (!ids.length) { p._trigPrev = null; return; }
   const prev = p._trigPrev, cur = {}; let fired = null;
-  for (const id of cfg.triggers) {
+  for (const id of ids) {
     const s = p.hass.states[id]; if (!s) continue;
     cur[id] = domain(id) === "event" ? s.state : isOn(s);           // event entities: the state is the time of the last event
     if (prev && prev[id] !== undefined && cur[id] !== prev[id] && (domain(id) === "event" || cur[id] === true)) fired = s;
   }
   p._trigPrev = cur;
   if (!fired) return;
-  const cam = p.hass.states[cfg.camera]; if (!cam) return;
+  const rule = rules.find(r => r.triggers.includes(fired.entity_id)), cam = rule && p.hass.states[rule.camera]; if (!cam) return;
   p.wake();
   p.openPopup({ type: "camera", s: cam, auto: true, by: fired.attributes.friendly_name || fired.entity_id });
   clearTimeout(p._autoT);
-  p._autoT = setTimeout(() => { if (p.popup?.auto) p.popup = null; }, (cfg.seconds || 30) * 1000);
+  p._autoT = setTimeout(() => { if (p.popup?.auto) p.popup = null; }, (rule.seconds || 30) * 1000);
 }
 /** candidates for the trigger chips: doorbell-like binary sensors and event entities */
 export const triggerCandidates = hass => Object.values(hass.states).filter(s => (domain(s.entity_id) === "binary_sensor" && ["occupancy", "motion", "sound", "vibration", "door", "opening", undefined].includes(s.attributes.device_class)) || domain(s.entity_id) === "event")
@@ -108,33 +115,97 @@ export const featureStyles = `
   .popup .fc div img.ico{width:24px;height:24px;margin:6px auto;display:block}
   .popup .fc div.today{background:rgba(255,255,255,.22)}
   .popup .confirm-text{white-space:pre-line}
-  .popup.wiz .wfoot{margin-top:22px}
-  .popup.wiz .dots{display:flex;gap:6px;justify-content:center;margin-bottom:14px}
-  .popup.wiz .dots i{width:8px;height:8px;border-radius:50%;background:#fff;opacity:.3}
-  .popup.wiz .dots i.on{opacity:1}
-  .popup.wiz .modes.n3{grid-template-columns:auto 1fr auto}
-  .popup.wiz .modes.n3 button{padding:14px 22px}
-  .popup.wiz .chips{margin-top:14px}
-  .popup.wiz .modes button:disabled{opacity:.35;pointer-events:none}
-  .popup.wiz .wbody{max-height:calc(80vh - 250px);overflow:auto;scrollbar-width:none;margin:0 -4px;padding:0 4px}
-  .popup.wiz .dots{flex-wrap:wrap}
-  .popup.wiz .ghead{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;opacity:.65;margin:16px 0 6px;cursor:pointer}
-  .popup.wiz .wsearch{width:100%;box-sizing:border-box;margin-top:12px;border:0;border-radius:var(--r-sm);background:rgba(0,0,0,.25);color:#fff;font:inherit;font-size:14px;padding:11px 14px}
-  .popup.wiz .prow.hd b{grid-column:1/-1;font-weight:400;opacity:.65;font-size:12px;margin-top:-4px}
-  .popup.wiz .likef small{display:block;margin-top:2px}
-  .popup.wiz .likef{margin-top:12px;display:grid;grid-template-columns:1fr;gap:6px;align-items:center}
-  .popup.wiz .plist.rooms li{grid-template-columns:1fr max-content;align-items:center}
-  .popup.wiz .plist.rooms .rn{display:grid;gap:6px}
-  .popup.wiz .plist.rooms .rn input{border:0;border-radius:8px;background:rgba(0,0,0,.25);color:#fff;font:inherit;font-size:13px;padding:8px 10px;min-width:0}
-  .popup.wiz .pv{margin-top:12px;border-radius:12px;background:rgba(0,0,0,.25);padding:14px 16px;display:grid;gap:10px}
-  .popup.wiz .pv-title{font-size:20px;font-weight:700}
-  .popup.wiz .pv-row{display:flex;flex-wrap:wrap;gap:6px}
-  .popup.wiz .pv-chip,.popup.wiz .pv-tile{display:inline-flex;align-items:center;gap:4px;border-radius:999px;background:rgba(255,255,255,.14);font-size:12px;font-weight:600;padding:6px 10px}
-  .popup.wiz .pv-chip ha-icon{--mdc-icon-size:14px}
-  .popup.wiz .pv-tile{border-radius:10px;padding:14px 12px;min-width:84px;background:rgba(255,255,255,.2)}
-  .popup.wiz .pv-line,.popup.wiz .pv-empty{font-size:12px;opacity:.75}
-  .popup.wiz .plist li{cursor:pointer}
-  .popup.wiz .plist li small{overflow-wrap:anywhere}
+  /* ---------- setup assistant ---------- */
+  .popup.wz{width:min(1240px,calc(100vw - 48px));max-width:none;height:min(820px,calc(100vh - 48px));height:min(820px,calc(100dvh - 48px));max-height:none;box-sizing:border-box;padding:24px 28px 20px;display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:14px;overflow:hidden;background:rgba(38,42,46,.78)}
+  .wz header .wzeye{font-size:11px;letter-spacing:1.6px;text-transform:uppercase;font-weight:700;opacity:.65}
+  .wz header h2{margin:6px 0 0;display:block;font-size:30px;line-height:1.15;font-weight:600;letter-spacing:-.5px;text-transform:none}
+  .wz header p{margin:6px 0 0;font-size:14px;opacity:.75;max-width:900px}
+  .wzb{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.08fr);gap:22px;min-height:0}
+  .wz.three .wzb{grid-template-columns:170px minmax(0,1fr) minmax(0,.9fr)}
+  .wzc{min-height:0;min-width:0;overflow:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.25) transparent;padding:3px 6px 8px 3px}
+  .wz ul{margin-top:6px}
+  .wz .wzl li,.wz .wzsort li{padding:9px 12px 9px 14px;gap:12px;font-size:14px}
+  .wz .wzl li small,.wz .wzsort li small{overflow-wrap:anywhere}
+  .wz footer .modes.n3{grid-template-columns:1fr auto 1fr;align-items:center;margin-top:0}
+  .wz footer .modes.n3 button{padding:14px 26px;justify-self:start}
+  .wz footer .modes.n3 button.on{justify-self:end}
+  .wz footer .modes button:disabled{opacity:.35;pointer-events:none}
+  .wz .dots{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+  .wz .dots i{width:8px;height:8px;border-radius:50%;background:#fff;opacity:.3}
+  .wz .dots i.on{opacity:1}
+  .wz select,.wz input[type=text]{border:0;border-radius:var(--r-sm);padding:8px 10px;background:rgba(0,0,0,.3);color:#fff;font:inherit;font-size:13px;color-scheme:dark;min-width:0;max-width:100%;outline:none}
+  .wz select option{background:#2b2b2b;color:#fff}
+  .wz .chips{margin-top:0;gap:5px}
+  .wz .chips button{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .wz .chips button.off{opacity:.5}
+  .wzh{font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;opacity:.65;margin:16px 0 6px}
+  .wzh.first{margin-top:0}
+  .wzh small{display:block;text-transform:none;letter-spacing:0;font-weight:500;margin-top:2px}
+  .wznote{font-size:12px;opacity:.7;line-height:1.45;margin:8px 0 0}
+  .wzrt{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase}
+  .wzrt>span:first-child{opacity:.8}
+  .wzrt:not(:first-child){margin-top:14px}
+  .wztag{background:var(--accent);color:#2b2100;padding:4px 10px;border-radius:999px;letter-spacing:.8px;white-space:nowrap}
+  .wzpop .popup .big{font-size:26px;margin:0;letter-spacing:-.5px}
+  .wzpop .popup h2{font-size:12px}
+  .wzpop .popup .sub{margin-bottom:4px;font-size:12px}
+  .wzpop .popup .modes{margin-top:8px}
+  .wzpop .popup .modes button{padding:10px 0}
+  .wzpop .popup li{padding:8px 12px}
+  .wzpop .popup img.stream{width:100%;max-height:140px;object-fit:cover;border-radius:var(--r-sm)}
+  .wzpop .popup{width:auto;min-width:0;max-width:none;max-height:none;overflow:visible;padding:16px 18px;animation:none;box-sizing:border-box}
+  .wzpv,.wzpop{pointer-events:none;user-select:none}
+  .wzg{border:1px solid var(--line);border-radius:10px;padding:6px;margin-top:8px;background:rgba(255,255,255,.04)}
+  .wzg:first-child{margin-top:0}
+  .wzg.sel{box-shadow:0 0 0 2px var(--accent) inset}
+  .wzg.off{opacity:.6}
+  .wzg ul{margin-top:0}
+  .wzcap{display:flex;align-items:center;gap:10px;padding:8px 8px 4px;flex-wrap:wrap}
+  .wzcap>span{font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;opacity:.65;white-space:nowrap}
+  .wzcap small{font-size:12px;opacity:.65}
+  .wzchip{display:inline-flex;padding:7px 12px;border-radius:999px;background:rgba(255,255,255,.2);font-size:12px;font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .wzmore{font-size:12px;opacity:.65;padding:7px 4px}
+  .wzsort{list-style:none;display:flex;flex-direction:column;gap:4px}
+  .wzsort li{display:grid;grid-template-columns:14px minmax(0,1fr) max-content;align-items:center;cursor:grab;position:relative}
+  .wzsort li.on{background:rgba(255,255,255,.2)}
+  .wzsort li:not(.on){opacity:.55}
+  .wzsort li.drag{opacity:.35}
+  .wzsort li.ins-top{box-shadow:0 -3px 0 #fff}
+  .wzsort li.ins-bot{box-shadow:0 3px 0 #fff}
+  .wzgrip{width:14px;height:22px;background:radial-gradient(circle,rgba(255,255,255,.55) 1.4px,transparent 1.6px) 0 0/7px 7px;opacity:.8}
+  .wzbtns{display:flex;gap:4px}
+  .wzarr{width:32px;height:32px;border:0;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;cursor:pointer;display:grid;place-items:center;padding:0}
+  .wzarr:disabled{opacity:.3;cursor:default}
+  .wzarr ha-icon{--mdc-icon-size:18px}
+  .wzren{width:100%;box-sizing:border-box}
+  .wzsteps li{grid-template-columns:34px minmax(0,1fr)}
+  .wzsteps li b,.wzsum li b{font-size:20px;font-weight:600}
+  .wzsum li{grid-template-columns:44px minmax(0,1fr) max-content}
+  .wzsug li{grid-template-columns:24px minmax(0,1fr) minmax(130px,190px);align-items:center}
+  .wzsug input[type=checkbox]{accent-color:#fff;width:18px;height:18px}
+  .wzsug li:not(.on){opacity:.65}
+  .wzrooms li{grid-template-columns:minmax(0,1fr) max-content;padding:9px 12px}
+  .wzsec{margin-top:8px;padding-top:7px;border-top:1px solid var(--line)}
+  .wzsh{display:flex;justify-content:space-between;gap:8px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;opacity:.7;margin-bottom:6px}
+  .wzgl{font-size:10px;opacity:.7;text-transform:uppercase;letter-spacing:.6px}
+  .wz .form .f.wzfoc{box-shadow:0 0 0 2px var(--accent) inset}
+  .wzsel{display:flex;align-items:center;gap:8px;min-width:0}
+  .wzsel select{flex:1}
+  .wzsel b{margin-left:auto;font-size:12px;white-space:nowrap;font-weight:600}
+  .wzok,.wzwn{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;white-space:nowrap}
+  .wzok{color:#8fd16a}
+  .wzwn{color:var(--accent)}
+  .wzstage{position:relative;overflow:hidden;isolation:isolate;font-family:var(--font);color:var(--fg)}
+  @media (max-width:900px){
+    .popup.wz{width:calc(100vw - 16px);height:calc(100vh - 16px);height:calc(100dvh - 16px);padding:16px 16px 14px}
+    .wz header h2{font-size:22px}
+    .wzb,.wz.three .wzb{display:block;overflow:auto;scrollbar-width:thin}
+    .wzc{overflow:visible;padding:0}
+    .wzr{margin-top:18px}
+    .wz.three .wzl1{margin-bottom:12px}
+    .wzsug li{grid-template-columns:24px minmax(0,1fr)}
+    .wzsug select{grid-column:2}
+  }
   .popup li img.avatar{width:34px;height:34px;border-radius:50%;object-fit:cover;margin-left:-2px}
   .popup .form.lines .lrow{display:grid;grid-template-columns:150px 1fr max-content;gap:6px;margin-top:4px}
   .popup .form.lines .lrow button,.popup .form.lines .addline{border:0;border-radius:var(--r-sm);background:rgba(255,255,255,.14);color:#fff;font:inherit;font-size:12px;font-weight:700;padding:9px 12px;cursor:pointer}

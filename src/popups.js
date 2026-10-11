@@ -2,11 +2,11 @@
 import { t, locale } from "./i18n.js";
 import { html, nothing } from "lit";
 import { icon, isOn, unavailable, num, relTime, shortDate, domain } from "./util.js";
-import { name } from "./model.js";
+import { name, isGroup } from "./model.js";
 import { PAGES } from "./pages.js";
 import { keypad, bars } from "./extras.js";
 import { eventWhen, timeline, applianceState } from "./extras2.js";
-import { wasteColor, wasteWhen, condText, condIcon, condSvg, label, camStream, attFilter, ATT_FILTERS, mediaView , lightCaps, batteryOf, groupMembers } from "./cards.js";
+import { wasteColor, wasteWhen, condText, condIcon, condSvg, label, camStream, attFilter, ATT_FILTERS, mediaView , lightCaps, sumData, batteryOf, groupMembers } from "./cards.js";
 import { roomPresets, snapshot, applyPreset, presetMatches, installUpdate, pendingUpdates } from "./features.js";
 import { modeList, toggleMode } from "./extras3.js";
 import { field, text, select, check } from "./settings.js";
@@ -247,6 +247,25 @@ export function renderPopup(p, pop) {
       return wrap(t("Lampen"), home.lightsOn.length ? t("{n} aan", { n: home.lightsOn.length }) : t("Alles uit"), t("van {n} lampen", { n: home.lights.length }), html`
         ${home.lightsOn.length ? modes([{ label: t("Alles uit"), go: () => p.call("light", "turn_off", { entity_id: home.lightsOn.map(e => e.id) }) }], "n2") : nothing}
         <ul>${[...home.lightsOn, ...home.lights.filter(e => !isOn(e.state))].map(e => li("mdi:lightbulb-outline", name(hass, e), isOn(e.state) ? `${Math.round((e.state.attributes.brightness || 255) / 2.55)}%` : t("Uit"), { on: isOn(e.state), sub: e.room.name, svg: "lamp", onclick: () => p.call("light", "toggle", { entity_id: e.id }) }))}</ul>`);
+    case "sum": {
+      const d = sumData(p, home, pop.kind), byRoom = new Map();
+      for (const e of d.all) { const k = e.room?.name || ""; if (!byRoom.has(k)) byRoom.set(k, []); byRoom.get(k).push(e); }
+      const grp = e => isGroup(e) ? t("Groep") : "";
+      const row = e => {
+        const s = e.state, on = isOn(s), nm = name(hass, e), sub = [grp(e)].filter(Boolean).join(" · ");
+        if (d.kind === "lights") return li("mdi:lightbulb-outline", nm, unavailable(s) ? t("Onbereikbaar") : on ? (s.attributes.brightness ? `${Math.round(s.attributes.brightness / 2.55)}%` : t("Aan")) : t("Uit"), { on, sub, svg: "lamp", onclick: () => p.call("light", "toggle", { entity_id: e.id }) });
+        if (d.kind === "openings") { const door = home.doors.includes(e); return li(door ? "mdi:door" : "mdi:window-closed-variant", nm, on ? t("Open") : t("Dicht"), { on, sub: [sub, relTime(s?.last_changed)].filter(Boolean).join(" · "), svg: door ? "door" : "window", onclick: () => p.go(e.room) }); }
+        if (d.kind === "climate") { const cur = num(s?.attributes?.current_temperature), tg = num(s?.attributes?.temperature), act = d.act.includes(e);
+          return li("mdi:radiator", nm, tg != null ? `${tg.toFixed(1)}°` : s?.state, { on: act, sub: [sub, cur != null ? t("Nu {v}", { v: cur.toFixed(1) + "°" }) : ""].filter(Boolean).join(" · "), svg: "heating", onclick: () => p.openPopup({ type: "climate", s }) }); }
+        const v = d.act.includes(e); return li("mdi:music", nm, v ? (s.state === "paused" ? t("Gepauzeerd") : t("Speelt af")) : t("Uit"), { on: v, sub: [sub, s?.attributes?.media_title || ""].filter(Boolean).join(" · "), svg: "music", onclick: () => p.openPopup({ type: "media", e }) });
+      };
+      const big = d.kind === "lights" ? d.big + " " + t("aan") : d.kind === "openings" ? d.big : d.kind === "climate" ? d.big + " " + t("actief") : d.c || t("Er speelt niets");
+      return wrap(d.title, big, t("{n} apparaten, per kamer", { n: d.all.length }), html`
+        ${d.kind === "lights" ? modes([{ label: t("Alles uit"), go: () => p.call("light", "turn_off", { entity_id: d.all.map(e => e.id) }) }, { label: t("Alles aan"), go: () => p.call("light", "turn_on", { entity_id: d.all.map(e => e.id) }) }], "n2") : nothing}
+        ${(() => { let left = pop.limit || 1e9; const out = [];
+          for (const [room, list] of byRoom) { if (left <= 0) break; const part = list.slice(0, left); left -= part.length; out.push(html`<div class="rh">${room || t("Zonder kamer")}</div><ul>${part.map(row)}</ul>`); }
+          return html`${out}${pop.limit && d.all.length > pop.limit ? html`<div class="rh">${t("… en {n} meer", { n: d.all.length - pop.limit })}</div>` : nothing}`; })()}`);
+    }
     case "waste":
       return wrap(t("Afval"), home.waste[0] ? `${home.waste[0].label} ${wasteWhen(home.waste[0])}` : t("Geen data"), t("Ophaaldagen"), html`
         <ul>${home.waste.map((w, i) => li("mdi:trash-can-outline", html`<i class="dot" style="background:${wasteColor(w.label)}"></i>${w.label}`, wasteWhen(w), { on: i === 0, sub: w.days > 7 && w.date ? new Date(w.date).toLocaleDateString(locale(), { weekday: "long" }) : "" }))}</ul>`);
@@ -339,7 +358,9 @@ export function renderPopup(p, pop) {
     case "energy": {
       const en = home.energy, r = (s, u) => s ? `${num(s.state)?.toLocaleString(locale())} ${u}` : "–";
       if (en.today && pop.hourly === undefined) p.loadHourly(pop);
-      return wrap(t("Energie"), r(en.power, "W"), t("Nu"), html`${en.today ? html`<div class="prow" style="margin-top:6px"><span>${t("Vandaag per uur")}</span><b>${r(en.today, "kWh")}</b></div>${bars(pop.hourly === undefined ? null : pop.hourly)}` : nothing}<ul>${li("mdi:home-import-outline", t("Verbruik vandaag"), r(en.today, "kWh"))}${li("mdi:solar-power-variant-outline", t("Teruggeleverd"), r(en.returned, "kWh"))}${li("mdi:fire", t("Gas"), r(en.gas, "m³"))}</ul>`);
+      return wrap(t("Energie"), r(en.power, "W"), t("Nu"), html`${en.today ? html`<div class="prow" style="margin-top:6px"><span>${t("Vandaag per uur")}</span><b>${r(en.today, "kWh")}</b></div>${bars(pop.hourly === undefined ? null : pop.hourly)}` : nothing}<ul>${[["mdi:solar-power-variant-outline", t("Zonne-opbrengst"), en.pv, "W"], ["mdi:transmission-tower-import", t("Van het net"), en.import, "W"], ["mdi:transmission-tower-export", t("Naar het net"), en.export, "W"], ["mdi:battery-outline", t("Batterij"), en.battery, "%"], ["mdi:battery-charging-outline", t("Batterij vermogen"), en.batteryPower, "W"],
+        ["mdi:home-import-outline", t("Verbruik vandaag"), en.today, "kWh"], ["mdi:solar-power", t("Opbrengst vandaag"), en.pvToday, "kWh"], ["mdi:transmission-tower-import", t("Van het net vandaag"), en.importToday, "kWh"], ["mdi:solar-power-variant-outline", t("Teruggeleverd"), en.returned, "kWh"], ["mdi:fire", t("Gas"), en.gas, "m³"]]
+        .filter(([, , s]) => s).map(([ic, lb, s, u]) => li(ic, lb, r(s, u), { onclick: () => p.moreInfo(s.entity_id) }))}</ul>`);
     }
     case "camera": {
       const s = hass.states[pop.s.entity_id] || pop.s;

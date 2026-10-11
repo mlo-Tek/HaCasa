@@ -37,7 +37,7 @@ function wasteDate(s) {
 const isOpState = e => e.reg.translation_key === "operation_state" || /_operation_state$/.test(e.id);
 
 function classify(list, config = {}, hass = {}) {
-  const r = { lights: [], switches: [], strips: [], media: [], covers: [], climate: [], fans: [], locks: [], vacuums: [], humidifiers: [], scenes: [], cameras: [], appliances: [], power: [], opstate: [], doors: [], windows: [], motion: [], temp: [], hum: [], battery: [], other: [], all: list };
+  const r = { lights: [], switches: [], strips: [], media: [], covers: [], climate: [], fans: [], locks: [], vacuums: [], humidifiers: [], scenes: [], cameras: [], appliances: [], power: [], opstate: [], doors: [], windows: [], motion: [], temp: [], hum: [], lux: [], battery: [], other: [], all: list };
   for (const e of list) {
     const d = domain(e.id), dc = e.state?.attributes?.device_class, cat = e.reg.entity_category;
     if (cat === "diagnostic" || cat === "config") { if (dc === "battery") r.battery.push(e); continue; }
@@ -56,7 +56,7 @@ function classify(list, config = {}, hass = {}) {
       if (DOOR.includes(dc)) r.doors.push(e); else if (WINDOW.includes(dc)) r.windows.push(e);
       else if (MOTION.includes(dc)) r.motion.push(e); else r.other.push(e);
     } else if (d === "sensor") {
-      if (dc === "temperature") r.temp.push(e); else if (dc === "humidity") r.hum.push(e);
+      if (dc === "temperature") r.temp.push(e); else if (dc === "humidity") r.hum.push(e); else if (dc === "illuminance") r.lux.push(e);
       else if (dc === "battery") r.battery.push(e);
       else if (dc === "power" || e.state?.attributes?.unit_of_measurement === "W") r.power.push(e);
       else if (isOpState(e)) r.opstate.push(e);
@@ -109,6 +109,11 @@ function classify(list, config = {}, hass = {}) {
   return r;
 }
 
+/** a helper group (light group, binary_sensor group, …) lists its members in the entity_id attribute */
+export const isGroup = e => Array.isArray((e.state || e)?.attributes?.entity_id);
+/** the sensor picked for a room ("sources" in the page settings) or, without a pick, the average of all of them */
+const sourced = (list, id) => { if (id === "none") return null; const e = id && list.find(x => x.id === id); return e ? num(e.state?.state) : avg(list); };
+
 const avg = (list) => { const v = list.map(e => num(e.state?.state)).filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
 const latest = (list) => list.map(e => e.state).filter(Boolean).sort((a, b) => new Date(b.last_changed) - new Date(a.last_changed))[0];
 
@@ -143,7 +148,7 @@ export function buildRooms(hass, config) {
       // photo file named after the area name, or else after the area id (stays put when the area is renamed)
       images: pg.image || a.picture || !config.roomImage ? null : [...new Set([s, slug(a.area_id)])].map(x => config.roomImage.replace("{slug}", x)),
       ents,
-      temp: avg(ents.temp), hum: avg(ents.hum),
+      sources: pg.sources || {}, temp: sourced(ents.temp, pg.sources?.temp), hum: sourced(ents.hum, pg.sources?.hum), lux: sourced(ents.lux, pg.sources?.lux),
       motion: latest(ents.motion),
       motionOn: ents.motion.filter(e => !config.home?.bannerSensors || config.home.bannerSensors.includes(e.id)).some(e => isOn(e.state)),
       lightsOn: ents.lights.filter(e => isOn(e.state)).length,
@@ -179,6 +184,10 @@ export function buildHome(hass, config, rooms, notifications = []) {
   const lights = all.filter(e => domain(e.id) === "light" && !e.reg.entity_category);
   const doors = rooms.flatMap(r => r.ents.doors.map(e => ({ ...e, room: r })));
   const windows = rooms.flatMap(r => r.ents.windows.map(e => ({ ...e, room: r })));
+  const climates = rooms.flatMap(r => r.ents.climate.map(e => ({ ...e, room: r })));
+  const media = rooms.flatMap(r => r.ents.media.map(e => ({ ...e, room: r })));
+  // cameras in the carousel: the ones ticked in the setup, in that order (none ticked = no carousel card)
+  const camCarousel = (h.cams || []).filter(c => c.carousel).map(c => hass.states[c.camera]).filter(Boolean);
   const persons = Object.values(hass.states).filter(s => domain(s.entity_id) === "person");
 
   const low = h.lowBattery ?? 20;
@@ -213,11 +222,15 @@ export function buildHome(hass, config, rooms, notifications = []) {
     temp: h.temperature ? num(hass.states[h.temperature]?.state) : (temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null),
     hum: h.humidity ? num(hass.states[h.humidity]?.state) : (hums.length ? hums.reduce((a, b) => a + b, 0) / hums.length : null),
     lights, lightsOn: lights.filter(e => isOn(e.state)),
+    camCarousel,
+    climates, climatesActive: climates.filter(e => ["heating", "cooling"].includes(e.state?.attributes?.hvac_action) || (!e.state?.attributes?.hvac_action && e.state && !["off", "unavailable", "unknown"].includes(e.state.state))),
+    media, mediaActive: media.filter(e => ["playing", "paused", "buffering"].includes(e.state?.state)),
     doors, doorsOpen: doors.filter(e => isOn(e.state)),
     windows, windowsOpen: windows.filter(e => isOn(e.state)),
     motion: rooms.filter(r => r.motionOn),
     attention, waste, scenes,
-    energy: { power: hass.states[en.power], today: hass.states[en.today], returned: hass.states[en.returned], gas: hass.states[en.gas] },
+    energy: { power: hass.states[en.power], today: hass.states[en.today], returned: hass.states[en.returned] || hass.states[en.exportToday], gas: hass.states[en.gas],
+      pv: hass.states[en.pv], import: hass.states[en.import], export: hass.states[en.export], battery: hass.states[en.battery], batteryPower: hass.states[en.batteryPower], pvToday: hass.states[en.pvToday], importToday: hass.states[en.importToday] },
   };
 }
 

@@ -208,6 +208,11 @@ export const styles = css`
   .card .ctl button.down img{transform:rotate(90deg)}
   .card .ctl button ha-icon{--mdc-icon-size:22px}
   /* climate: setpoint big above the name, current temperature under it, presets bottom-left, hvac modes in a column left of up/down */
+  .card.sum{grid-template-areas:"i c" ". ." "s s" "n n" "l l" ". .";grid-template-rows:max-content 1fr max-content max-content max-content 1fr}
+  .card.sum.nobig{grid-template-areas:"i c" ". ." "n n" "s s" "l l" ". ."}
+  .card.cam.carousel{width:calc(var(--card-w) * 2.15);padding:0}
+  .card.cam.carousel::before{display:none}
+  .card.cam.carousel hcn-cam-carousel{--cp:22px}
   .card.climate{grid-template-areas:"i c" ". ." "s s" "n n" "l l" ". .";grid-template-rows:max-content 1fr max-content max-content max-content 1fr;--bt:calc(30 * var(--u));--rw:calc(44 * var(--u));padding-right:calc(var(--rw) + var(--cp) + 14px);padding-bottom:calc(var(--bt) + var(--cp) + 10px)}
   .card.climate .ctl.row{position:absolute;left:var(--cp);right:auto;bottom:var(--cp);width:auto;display:flex;align-items:center;gap:4px;grid-auto-rows:auto}
   .card.climate .ctl.row .seg{height:var(--bt);padding:3px;align-items:center;margin-right:4px}
@@ -383,6 +388,8 @@ export const styles = css`
   .popup li{border-radius:var(--r-sm);display:grid;grid-template-columns:30px 1fr max-content;gap:16px;align-items:center;padding:14px 16px;background:rgba(255,255,255,.08);border:1px solid var(--line);font-size:15px;font-weight:600}
   .popup li.on{background:rgba(255,255,255,.3);border-color:var(--line-on)}
   .popup li.tap{cursor:pointer}
+  .popup .rh{margin:16px 0 0;font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;opacity:.65}
+  .popup .rh + ul{margin-top:6px}
   .popup li small{display:block;font-size:12px;font-weight:500;opacity:.7;margin-top:2px}
   .popup li .st{font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;opacity:.8;white-space:nowrap}
   .popup li ha-icon{--mdc-icon-size:26px}

@@ -9,7 +9,7 @@ import fontUrl from "./fonts/hanken-grotesk.woff2";
 import { buildRooms, buildHome, name } from "./model.js";
 import { lightCard, switchCard, mediaCard, coverCard, climateCard, sensorCard, stripCard, fanCard, lockCard, vacuumCard, humidifierCard, roomScenesCard, roomCameraCard, applianceCard, templateCard, homeCards, condText, condIcon, condSvg, wasteSentence, ico, wxExpect, groupCard } from "./cards.js";
 import { renderPopup } from "./popups.js";
-import { renderSettings, loadUserConfig, saveUserConfig, mergeConfig } from "./settings.js";
+import { renderSettings, loadUserConfig, saveUserConfig, mergeConfig, USER_DATA_KEY } from "./settings.js";
 import { renderPage, PAGES } from "./pages.js";
 import { subscribeNotifications, hourlyToday, idleScreen } from "./extras.js";
 import { fetchEvents, fetchHistory, nextEvent, applianceState, applianceEnd } from "./extras2.js";
@@ -203,6 +203,7 @@ class HacasaNova extends LitElement {
   async saveUser(patch) { this.userConfig = { ...(this.userConfig || {}), ...patch }; await saveUserConfig(this.hass, this.userConfig); this.applyConfig(); }
   /** wizard result -> user settings (null = skipped: only remember that it ran) */
   async finishWizard(d) {
+    if (d && this.userConfig) { try { await this.hass.callWS({ type: "frontend/set_user_data", key: USER_DATA_KEY + "_backup", value: this.userConfig }); } catch (e) { console.warn("[hacasa-nova] backup failed", e); } }   // the settings from before the assistant
     await this.saveUser(d ? wizardPatch(this, d) : { setupDone: true }); this.popup = null; if (d) this.showToast(t("Het panel is ingesteld"));
   }
   /** "seen" = everything that exists now has been looked at: no more new-device hints for it */
@@ -391,7 +392,19 @@ class HacasaNova extends LitElement {
     return html`
       ${this._prevBg ? html`<div class="bg out" style="--bg:url(&quot;${this._prevBg}&quot;)"></div>` : nothing}
       ${keyed(bg || "plain", isPage ? html`<div class="bg plain"></div>` : html`<div class=${classMap({ bg: true, grad: !this.bgOk(bg) })} style=${this.bgStyle(bg, room?.slug)}></div>`)}
-      <nav class=${classMap({ nav: true, open: this.drawer, srch: !!this.searchOpen })}>
+      ${this.renderNav(room, isPage, alarm, armed, alarmLbl, alarmCls)}
+      ${keyed(this.settings ? "settings" : this.page || (room ? room.id : "home"), this.settings ? renderSettings(this) : this.page ? renderPage(this, this.page) : room ? this.renderRoom(room) : this.renderHome(h))}
+      ${this.hass.connected === false ? html`<div class="offline"><ha-icon icon="mdi:lan-disconnect"></ha-icon>${t("Geen verbinding met Home Assistant")}</div>` : nothing}
+      ${this.toast ? html`<div class=${classMap({ toast: true, info: this.toastCls === "info" })}>${this.toast}</div>` : nothing}
+      ${this.idle ? idleScreen(this) : nothing}
+      ${this.popup ? html`<div class="overlay" @click=${e => { if ((e.target.classList.contains("overlay") && this.popup?.type !== "wizard") || e.target.hasAttribute("data-close")) this.popup = null; }}>${renderPopup(this, this.popup)}</div>` : nothing}
+    `;
+  }
+
+  /** top bar: logo, room links, people, alarm, clock, search, menu (also used by the setup assistant's live preview) */
+  renderNav(room, isPage, alarm = this.home.alarm, armed = false, alarmLbl = "", alarmCls = "") {
+    const h = this.home;
+    return html`<nav class=${classMap({ nav: true, open: this.drawer, srch: !!this.searchOpen })}>
         <a class="logo" @click=${() => this.go(null)}><span class="mark"><img class="ico logo" src=${icon("hacasa")} alt="HaCasa"></span>${brandTitle(this.config.title || t("Thuis") + ".")}</a>
         ${this.renderLinks(room, isPage)}
         ${h.persons.length && this.config.home?.people !== false ? html`<div class="people pill" title=${t("Wie is thuis")} @click=${() => this.openPopup({ type: "people" })}><ha-icon icon="mdi:account-group-outline"></ha-icon><span class="pc">${h.home}<small>/${h.persons.length}</small></span></div>` : nothing}
@@ -400,13 +413,7 @@ class HacasaNova extends LitElement {
         <button class=${classMap({ sbtn: true, on: !!this.searchOpen })} title=${t("Zoeken")} @click=${() => { this.searchOpen = !this.searchOpen; if (!this.searchOpen) this.search = ""; }}><img src=${icon(this.searchOpen ? "close" : "search")} alt=""></button>
         <button class="menu" @click=${() => { this.drawer = !this.drawer; this.navFloor = this.drawer ? this.floorOf(room) : null; }}><img src=${icon(this.drawer ? "close" : "menu")} alt="menu"></button>
         ${matchMedia("(max-width:900px)").matches ? searchBar(this) : nothing}
-      </nav>
-      ${keyed(this.settings ? "settings" : this.page || (room ? room.id : "home"), this.settings ? renderSettings(this) : this.page ? renderPage(this, this.page) : room ? this.renderRoom(room) : this.renderHome(h))}
-      ${this.hass.connected === false ? html`<div class="offline"><ha-icon icon="mdi:lan-disconnect"></ha-icon>${t("Geen verbinding met Home Assistant")}</div>` : nothing}
-      ${this.toast ? html`<div class=${classMap({ toast: true, info: this.toastCls === "info" })}>${this.toast}</div>` : nothing}
-      ${this.idle ? idleScreen(this) : nothing}
-      ${this.popup ? html`<div class="overlay" @click=${e => { if ((e.target.classList.contains("overlay") && this.popup?.type !== "wizard") || e.target.hasAttribute("data-close")) this.popup = null; }}>${renderPopup(this, this.popup)}</div>` : nothing}
-    `;
+      </nav>`;
   }
 
   /** notification-row lines for appliances that are busy, waiting, need attention or just finished ("Vaatwasser: Bezig · 11% · klaar om 19:47") */
@@ -553,6 +560,7 @@ class HacasaNova extends LitElement {
     items.push(...this.applianceItems(e.appliances));
     for (const b of e.battery.filter(x => +x.state?.state <= (this.config.home?.lowBattery ?? 20))) items.push({ k: "battery", icon: "mdi:battery-20", title: name(this.hass, b), text: t("Batterij {n}%", { n: b.state.state }) });
     if (e.lights.length) items.push({ k: "lights", icon: "mdi:lightbulb-outline", title: t("Lampen"), text: r.lightsOn ? t("{n} van {m} aan", { n: r.lightsOn, m: e.lights.length }) : t("Alles uit") });
+    if (r.lux != null) items.push({ k: "lux", icon: "mdi:brightness-5", title: t("Helderheid"), text: `${Math.round(r.lux)} lx` });
     if (r.motion) items.push({ k: "motion", icon: "mdi:motion-sensor", title: t("Beweging"), text: r.motionOn ? t("Nu") : relTime(r.motion.last_changed) });
     const nr = this.newDevices().find(x => x.room.id === r.id);
     if (nr) items.unshift({ k: "new", icon: "mdi:new-box", title: t("Nieuw"), text: t("{n} nieuwe apparaten gevonden · tik om te kiezen", { n: nr.keys.length }), tap: () => this.openPopup({ type: "page", key: r.id }) });

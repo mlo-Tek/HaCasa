@@ -7,6 +7,7 @@ import { name, deviceName } from "./model.js";
 import { applianceState, applianceEnd, eventWhen, nextEvent } from "./extras2.js";
 import { spark } from "./extras3.js";
 import "./camsnap.js";
+import "./camcarousel.js";
 
 const HOLD_MS = 500;
 
@@ -495,6 +496,39 @@ export function pickAttention(list) {
   return out;
 }
 
+/* ---------- summary tiles ---------- */
+export const SUM_KINDS = ["lights", "openings", "climate", "media"];
+/** what a summary tile (and its popup) shows for one kind of device */
+export function sumData(p, h, kind) {
+  const nm = e => name(p.hass, e), rooms = list => [...new Set(list.map(e => e.room?.name).filter(Boolean))];
+  if (kind === "lights") { const act = h.lightsOn;
+    return { kind, title: t("Licht"), icon: ["mdi:lightbulb-outline", "lamp"], all: h.lights, act, on: act.length > 0, c: act.length ? t("Aan") : t("Uit"), big: t("{n} van {m}", { n: act.length, m: h.lights.length }), lbl: act.length ? rooms(act) : [t("Alles uit")] }; }
+  if (kind === "openings") { const all = [...h.doors, ...h.windows], act = [...h.doorsOpen, ...h.windowsOpen];
+    return { kind, title: all.some(e => h.doors.includes(e)) && h.windows.length ? t("Ramen & deuren") : h.doors.length ? t("Deuren") : t("Ramen"), icon: h.windows.length ? ["mdi:window-closed-variant", "window"] : ["mdi:door", "door"], all, act, on: act.length > 0, c: act.length ? t("Open") : t("Dicht"), big: act.length ? t("{n} open", { n: act.length }) : t("Alles dicht"), lbl: act.length ? act.map(nm) : [t("Alles dicht")] }; }
+  if (kind === "climate") { const act = h.climatesActive;
+    return { kind, title: t("Klimaat"), icon: ["mdi:radiator", "heating"], all: h.climates, act, on: act.length > 0, c: act.length ? t("Verwarmt") : t("Uit"), big: t("{n} van {m}", { n: act.length, m: h.climates.length }), lbl: act.length ? act.map(e => { const c = num(e.state?.attributes?.current_temperature); return c != null ? `${e.room.name} ${c.toFixed(1)}°` : e.room.name; }) : [t("Alles uit")] }; }
+  const act = h.mediaActive;
+  return { kind: "media", title: t("Media"), icon: ["mdi:music", "music"], all: h.media, act, on: act.length > 0, c: act.length ? t("{n} actief", { n: act.length }) : "", s: act.length ? act.map(nm).join(" · ") : t("Er speelt niets"), lbl: [t("{n} spelers", { n: h.media.length })] };
+}
+export function sumCard(p, d) {
+  const hint = d.lbl.slice(0, 2), more = d.lbl.length > 2 ? ` +${d.lbl.length - 2}` : "";
+  return html`<div class=${classMap({ card: true, sum: true, nobig: !d.big, on: d.on })} ${pressDir(p, { tap: () => p.openPopup({ type: "sum", kind: d.kind }) })}>
+    <div class="i">${ico(...d.icon)}</div>
+    ${d.c ? html`<div class="c">${d.c}</div>` : nothing}
+    ${d.big ? html`<div class="s big">${d.big}</div>` : nothing}
+    <div class="n">${d.title}</div>
+    ${d.s ? html`<div class="s">${d.s}</div>` : nothing}
+    <div class="lbl">${hint.join(" · ")}${more}</div></div>`;
+}
+
+/* ---------- camera carousel ---------- */
+export function camCarouselCard(p, cams) {
+  const items = cams.map(s => { const un = unavailable(s);
+    return { id: s.entity_id, name: cardCfg(p, s.entity_id).name || s.attributes.friendly_name || s.entity_id, src: s.attributes.entity_picture || null, stream: camStream(s), unavailable: un,
+      sub: un ? t("Onbereikbaar") : s.state === "recording" ? t("Neemt op") : s.state === "streaming" ? t("Live") : t("Camera"), offline: t("Onbereikbaar"), liveLabel: t("Live") }; });
+  return html`<div class="card cam carousel"><hcn-cam-carousel .cams=${items} @cam-open=${e => p.openPopup({ type: "camera", s: cams[e.detail.index] })}></hcn-cam-carousel></div>`;
+}
+
 /* ---------- home cards: [{ key, label, tpl }] so the page config can hide/reorder them ---------- */
 export function homeCards(p, h) {
   const cards = [], add = (key, label, tpl) => cards.push({ key, label, tpl });
@@ -506,22 +540,9 @@ export function homeCards(p, h) {
     <div class="c">${h.attention.length} ${h.attention.length === 1 ? t("melding") : t("meldingen")}</div>
     <div class="n">${t("Aandacht")}</div>
     <div class="s">${pickAttention(h.attention).map(a => html`<span>${ico(a.icon)}<b>${a.name}</b><em>${a.text}</em></span>`)}</div></div>`);
-  const openCard = (key, title, all, open, popup, mdi, svg) => { const closed = all.filter(e => !open.includes(e)), nm = e => name(p.hass, e);
-    const latest = all.map(e => e.state?.last_changed).filter(Boolean).sort().at(-1);
-    return add(key, title, html`<div class=${classMap({ card: true, on: open.length > 0, foot: true })} ${pressDir(p, { tap: () => p.openPopup({ type: popup }) })}>
-      <div class="i">${ico(mdi, svg)}</div>
-      <div class="c">${open.length ? t("{n} open", { n: open.length }) : t("Dicht")}</div>
-      <div class="n">${title}</div>
-      <div class="s">${open.length ? open.slice(0, 2).map((e, i) => html`${i ? html`<br>` : nothing}<b>${nm(e)}</b> ${t("open sinds {t}", { t: relTime(e.state?.last_changed) })}`) : html`${t("Alles dicht")}${dot()}${sinceText(latest)}`}</div>
-      <div class="lbl">${footList((open.length ? closed : all).map(nm))}</div></div>`); };
-  if (false) openCard("doors", h.doors.length && h.windows.length ? t("Deuren & ramen") : h.doors.length ? t("Deuren") : t("Ramen"), [...h.doors, ...h.windows], [...h.doorsOpen, ...h.windowsOpen], "doors", h.doors.length ? "mdi:door" : "mdi:window-closed-variant", h.doors.length ? "door" : "window");
-  if (false) { const lastL = h.lights.map(e => e.state?.last_changed).filter(Boolean).sort().at(-1);
-    add("lights", t("Lampen"), html`<div class=${classMap({ card: true, foot: true, on: h.lightsOn.length > 0 })} ${pressDir(p, { tap: () => p.openPopup({ type: "lights" }) })}>
-    <div class="i">${ico("mdi:lightbulb-outline", "lamp")}</div>
-    <div class="c">${h.lightsOn.length ? t("{n} aan", { n: h.lightsOn.length }) : t("Uit")}</div>
-    <div class="n">${t("Lampen")}</div>
-    <div class="s">${h.lightsOn.length ? html`<b>${h.lightsOn.length}</b> ${t("van")} <b>${h.lights.length}</b> ${t("lampen aan")}` : html`${t("Alles uit")}${dot()}${sinceText(lastL)}`}</div>
-    <div class="lbl">${footList((h.lightsOn.length ? h.lightsOn : h.lights).map(e => name(p.hass, e)))}</div></div>`); }
+  // summary tiles: one card per kind of device (lights, windows & doors, climate, media); tapping opens the list, it never switches
+  if (p.config.curated || p.config.home?.sumTiles) for (const k of SUM_KINDS) { const d = sumData(p, h, k); if (d.all.length) add("sum:" + k, d.title, sumCard(p, d)); }
+  if (h.camCarousel.length) add("cams", t("Camera's"), camCarouselCard(p, h.camCarousel));
   const heroWx = h.weather && (p.config.home?.wxMobile || !matchMedia("(max-width:900px)").matches);
   if (h.weather && (p.config.home?.weatherCard || !heroWx)) { const w = h.weather, days = (p.wx?.daily || []).slice(1, 3), dayName = f => new Date(f.datetime).toLocaleDateString(locale(), { weekday: "short" }).replace(".", "");
     const expect = wxExpect(p, true);
@@ -553,6 +574,9 @@ export function homeCards(p, h) {
   if (h.energy.power) add("energy", t("Energie"), html`<div class="card" ${pressDir(p, { tap: () => p.openPopup({ type: "energy" }) })}>
     <div class="n">${t("Energie")}</div><div class="s">${Math.round(num(h.energy.power.state) ?? 0)} W</div>
     <div class="lbl">${h.energy.today ? t("Vandaag {n} kWh", { n: num(h.energy.today.state)?.toFixed(1) }) : ""}</div><div class="i">${ico("mdi:flash-outline", "electric")}</div></div>`);
+  if (h.energy.pv) add("pv", t("Zonne-energie"), html`<div class="card" ${pressDir(p, { tap: () => p.openPopup({ type: "energy" }) })}>
+    <div class="n">${t("Zonne-energie")}</div><div class="s">${Math.round(num(h.energy.pv.state) ?? 0)} W</div>
+    <div class="lbl">${h.energy.pvToday ? t("Vandaag {n} kWh", { n: num(h.energy.pvToday.state)?.toFixed(1) }) : ""}</div><div class="i">${ico("mdi:solar-power-variant-outline", "solar")}</div></div>`);
   return cards;
 }
 
