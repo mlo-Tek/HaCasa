@@ -16,15 +16,13 @@ export const num = v => { const n = parseFloat(v); return Number.isFinite(n) ? n
 export const isOn = s => !!s && ["on", "open", "playing", "heating", "cooling", "home"].includes(s.state);
 export const unavailable = s => !s || s.state === "unavailable" || s.state === "unknown";
 /** What a climate device is doing right now: "heat", "cool", "dry", or null (idle, off, fan only, offline).
- *  Uses hvac_action; without it, falls back to the mode plus the current and target temperature. */
+ *  Uses hvac_action; devices that do not report one count as running in their heat/cool/dry mode. */
 export function climateAct(s) {
   if (!s || unavailable(s) || s.state === "off") return null;
   const a = s.attributes?.hvac_action;
   if (a) return { heating: "heat", cooling: "cool", drying: "dry" }[a] || null;
-  if (s.state === "dry") return "dry";
-  const tg = num(s.attributes?.temperature), cu = num(s.attributes?.current_temperature);
-  if (tg == null || cu == null) return null;
-  return s.state === "heat" && cu < tg ? "heat" : s.state === "cool" && cu > tg ? "cool" : null;
+  // no hvac_action reported (many IR/air-conditioner integrations): the mode is the best signal we have
+  return { heat: "heat", cool: "cool", dry: "dry" }[s.state] || null;
 }
 /** Card/popup tint for a list of active climate actions (one entry per running device): one colour as a soft wash,
  *  several as diagonal bands in proportion to how many devices run each. Returns "" when nothing is running. */
