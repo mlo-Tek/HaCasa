@@ -47,7 +47,7 @@ export default {
   // settings
   "Algemeen": "Allgemein", "titel, foto's, slaapstand": "Titel, Fotos, Ruhebildschirm", "Pagina's": "Seiten", "kaarten, volgorde, titels": "Karten, Reihenfolge, Titel", "Kamers": "Räume", "welke en in welke volgorde": "welche und in welcher Reihenfolge", "sensoren, weer, scènes, media": "Sensoren, Wetter, Szenen, Medien", "knoppen onder de begroeting": "Schaltflächen unter der Begrüßung", "Bewegen & deurbel": "Bewegung & Türklingel", "bewegingsbalk, camera-popup": "Bewegungsleiste, Kamera-Popup", "Agenda & afval": "Kalender & Abfall", "kalenders en ophaaldagen": "Kalender und Abholtermine", "vermogen, verbruik, gas": "Leistung, Verbrauch, Gas", "Templatekaarten": "Template-Karten", "eigen kaarten met Jinja": "eigene Karten mit Jinja", "Meer-menu": "Mehr-Menü", "eigen links": "eigene Links", "Kaartinstellingen": "Karteneinstellungen", "per kaart gewijzigd": "pro Karte geändert",
   "Opgeslagen per gebruiker in Home Assistant. Leeg laten = automatisch of de waarde uit config.json.": "Wird pro Benutzer in Home Assistant gespeichert. Leer lassen = automatisch oder der Wert aus config.json.", "Opgeslagen": "Gespeichert", "Niet opgeslagen": "Nicht gespeichert", "Terug naar config.json": "Zurück zu config.json", "Wijzigingen niet opgeslagen. Toch sluiten?": "Änderungen nicht gespeichert. Trotzdem schließen?",
-  "Weergave": "Darstellung", "Taal": "Sprache", "automatisch (taal van Home Assistant)": "automatisch (Sprache von Home Assistant)", "linksboven in de navigatie": "oben links in der Navigation", "Kamerfoto": "Raumfoto", "{slug} wordt de ruimtenaam · per kamer aanpasbaar bij Pagina's": "{slug} wird der Raumname · pro Raum anpassbar unter Seiten", "Foto startpagina": "Startseiten-Foto", "Media-achtergrond": "Medien-Hintergrund", "op mediakaarten als er niets speelt; leeg = geen": "auf Medienkarten, wenn nichts spielt; leer = keiner",
+  "Weergave": "Darstellung", "Taal": "Sprache", "automatisch (taal van Home Assistant)": "automatisch (wie Home Assistant)", "linksboven in de navigatie": "oben links in der Navigation", "Kamerfoto": "Raumfoto", "{slug} wordt de ruimtenaam · per kamer aanpasbaar bij Pagina's": "{slug} wird der Raumname · pro Raum anpassbar unter Seiten", "Foto startpagina": "Startseiten-Foto", "Media-achtergrond": "Medien-Hintergrund", "op mediakaarten als er niets speelt; leeg = geen": "auf Medienkarten, wenn nichts spielt; leer = keiner",
   "Gedrag": "Verhalten", "Batterij-grens": "Batteriegrenze", "onder dit percentage in Aandacht": "unter diesem Prozentsatz unter Achtung", "kaart in elke kamer met lampen: sla lampstanden op en roep ze terug": "Karte in jedem Raum mit Lichtern: Lichtzustände speichern und wieder abrufen", "Slaapstand na": "Ruhebildschirm nach", "minuten zonder aanraking; 0 = uit": "Minuten ohne Berührung; 0 = aus", "Nu tonen": "Jetzt anzeigen", "Startpagina van HA": "HA-Startseite", "Home Assistant opent dan met dit panel (per gebruiker)": "Home Assistant öffnet dann mit diesem Panel (pro Benutzer)", "HaCasa Nova is de startpagina": "HaCasa Nova ist die Startseite", "Maak HaCasa Nova de startpagina": "HaCasa Nova zur Startseite machen",
   "per pagina: titel, foto, kaarten (tonen, verbergen, volgorde) en de meldingenregel": "pro Seite: Titel, Foto, Karten (anzeigen, ausblenden, Reihenfolge) und die Meldungszeile", "standaard": "Standard", "titel: {t}": "Titel: {t}", "eigen foto": "eigenes Foto", "{n} verborgen": "{n} ausgeblendet", "eigen volgorde": "eigene Reihenfolge", "{n} meldingen uit": "{n} Zeilen aus", "{n} eigen regels": "{n} eigene Zeilen", "Sneller: houd de titel van een pagina ingedrukt, of kies \"Deze pagina instellen\" in het Meer-menu.": "Schneller: Halte den Titel einer Seite gedrückt oder wähle „Diese Seite einrichten“ im Mehr-Menü.",
   "{n} zichtbaar · volgorde = navigatie": "{n} sichtbar · Reihenfolge = Navigation",
@@ -110,4 +110,24 @@ export default {
   "melding op de startpagina als er een nieuwe HaCasa Nova is (alleen voor beheerders)": "Meldung auf der Startseite, wenn es eine neue HaCasa Nova gibt (nur für Administratoren)",
   // same word in English, listed so the check sees them as translated
   "kWh": "kWh", "Update": "Update",
+  // Einrichtungsassistent und "Nur gewählte Karten"
+  "Nog geen kaarten gekozen. Kies ze via Pagina instellen.": "Noch keine Karten gewählt. Wähle sie unter Seiteneinstellungen.",
+  "Geen apparaat gevonden": "Kein Gerät gefunden",
+  "Nog niet ingesteld (Panel instellingen › Agenda)": "Noch nicht eingerichtet (Panel-Einstellungen › Kalender)",
+  "alleen als hij speelt": "nur wenn er läuft",
+  "alleen als hij bezig is": "nur wenn es läuft",
+  "{a} van {b} gekozen": "{a} von {b} gewählt",
+  "Aanbeveling overnemen": "Empfehlung übernehmen",
+  "Kies welke kaarten in deze kamer staan. Standaard is niets gekozen.": "Wähle, welche Karten in diesem Raum stehen. Standardmäßig ist nichts gewählt.",
+  "Alles is later aan te passen bij Panel instellingen.": "Alles lässt sich später in den Panel-Einstellungen ändern.",
+  "Hoe wil je instellen?": "Wie möchtest du einrichten?",
+  "Automatisch": "Automatisch",
+  "alle gevonden apparaten verschijnen vanzelf": "alle gefundenen Geräte erscheinen von selbst",
+  "Zelf kiezen": "Selbst wählen",
+  "niets verschijnt vanzelf; jij kiest per kamer welke kaarten er staan": "nichts erscheint von selbst; du wählst pro Raum, welche Karten angezeigt werden",
+  "Kaarten op de startpagina": "Karten auf der Startseite",
+  "Kies welke kaarten bovenaan de startpagina staan. Standaard is niets gekozen.": "Wähle, welche Karten auf der Startseite stehen. Standardmäßig ist nichts gewählt.",
+  "Alleen gekozen kaarten": "Nur gewählte Karten",
+  "niets verschijnt vanzelf: je kiest per pagina welke kaarten er staan (Pagina's)": "nichts erscheint von selbst: du wählst pro Seite, welche Karten stehen (Seiten)",
+  "{n} gekozen": "{n} gewählt",
 };
