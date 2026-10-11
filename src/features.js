@@ -112,7 +112,7 @@ export const featureStyles = `
   .popup.wiz .dots{display:flex;gap:6px;justify-content:center;margin-bottom:14px}
   .popup.wiz .dots i{width:8px;height:8px;border-radius:50%;background:#fff;opacity:.3}
   .popup.wiz .dots i.on{opacity:1}
-  .popup.wiz .modes.n3{grid-template-columns:1fr 1fr 1fr}
+  .popup.wiz .modes.n3{grid-template-columns:auto 1fr auto}
   .popup.wiz .chips{margin-top:14px}
   .popup.wiz .modes button:disabled{opacity:.35;pointer-events:none}
   .popup.wiz .plist{max-height:38vh;overflow:auto;scrollbar-width:none}
