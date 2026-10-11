@@ -216,7 +216,12 @@ class HacasaNova extends LitElement {
   pageCfg(key) { return this.config.pages?.[key] || {}; }
   /** cards in the configured order: keys listed in `order` first, the rest in their default position */
   orderCards(list, order = []) { const pos = k => { const i = order.indexOf(k); return i < 0 ? order.length + list.findIndex(c => c.key === k) : i; }; return [...list].sort((a, b) => pos(a.key) - pos(b.key)); }
-  applyPage(key, list) { const pc = this.pageCfg(key), hid = new Set(pc.hidden || []); return this.orderCards(list, pc.order).filter(c => !hid.has(c.key)); }
+  /** with `curated` only the cards picked for the page (`shown`) appear; otherwise everything except `hidden` */
+  applyPage(key, list) {
+    const pc = this.pageCfg(key), ordered = this.orderCards(list, pc.order);
+    if (this.config.curated) { const sh = new Set(pc.shown || []); return ordered.filter(c => sh.has(c.key)); }
+    const hid = new Set(pc.hidden || []); return ordered.filter(c => !hid.has(c.key));
+  }
   tickerOn(key, items) {
     const pc = this.pageCfg(key), tk = pc.ticker || {};
     const custom = (pc.lines || []).map((l, i) => ({ k: "custom", icon: l.icon || "mdi:text", text: this.templates?.[`line:${key}:${i}`]?.state })).filter(x => x.text && String(x.text).trim());
@@ -534,7 +539,7 @@ class HacasaNova extends LitElement {
     return html`
       ${this.renderTitle(r.temp, r.name, "", this.tickerOn(r.id, items), nothing, r.id, nothing, r.hum)}
       <div class="strip" @pointerdown=${this._stripDown} @wheel=${this._stripWheel} @scroll=${this._stripScroll}>${cards}</div>${this.stripFades()}
-      ${!cards.length ? html`<div class="empty">${t("Geen apparaten in deze ruimte.")}</div>` : nothing}
+      ${!cards.length ? html`<div class="empty">${this.config.curated ? t("Nog geen kaarten gekozen. Kies ze via Pagina instellen.") : t("Geen apparaten in deze ruimte.")}</div>` : nothing}
       <div class=${classMap({ banner: true, show: r.motionOn })}><img class="ico" src=${icon("motion")} alt="">${t("Beweging in de {room}", { room: r.name.toLowerCase() })}</div>`;
   }
 }

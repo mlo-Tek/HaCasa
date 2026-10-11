@@ -6,7 +6,7 @@ Open **More → Panel settings**. Changes are a draft until you press **Save**; 
 
 | tab | what you set there |
 |---|---|
-| **General** | export and import the settings file, language, title, navigation per room or per floor, photo paths, media background, light scenes on or off, idle screen, battery limit for Attention, run the setup wizard, make the panel Home Assistant's start page |
+| **General** | export and import the settings file, language, title, navigation per room or per floor, photo paths, media background, light scenes on or off, **only chosen cards**, idle screen, battery limit for Attention, run the setup wizard, make the panel Home Assistant's start page |
 | **Pages** | per page: title, photo, which cards and in which order, notification lines and your own lines |
 | **Card defaults** | tap, hold and the bottom line per card type (lights, switches, plugs, sensors …) |
 | **Rooms** | which areas are rooms and their order in the navigation |
@@ -21,6 +21,10 @@ Open **More → Panel settings**. Changes are a draft until you press **Save**; 
 | **Modes** | guest, vacation and other modes linked to an `input_boolean` or switch |
 | **Card settings** | every card you changed, with a reset per card |
 
+## Only chosen cards
+
+By default every device that belongs to an area gets a card. Switch on **General → Behaviour → Only chosen cards** and nothing shows up by itself: each page stays empty until you pick its cards under **Pages → Set up** (eye icon per card, or **All on** / **All off**). Cards that appear later, for example after adding a device, stay hidden until you choose them. Add `curated: true` to the starter config to make this the default for everyone.
+
 ## Settings file
 
 **General → Settings file → Export** downloads all settings of the current user as JSON. **Import** merges such a file (or a starter `config.json`) into the current settings. Use it to copy a setup to another household member or another Home Assistant.
@@ -33,6 +37,7 @@ When you use the [dashboard card](installation.md#2b-dashboard-card), its `confi
 |---|---|
 | `title` | title top left |
 | `language` | `en` or `nl` (leave out to follow Home Assistant) |
+| `curated` | `true` = only cards picked per page are shown (see above) |
 | `rooms` | `auto` or a list of area ids or names, in navigation order |
 | `roomImage`, `homeImage` | photo paths; `{slug}` is replaced by the room name |
 | `home.weather`, `home.climate`, `home.alarm` | entity ids for the home view |

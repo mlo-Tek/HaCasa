@@ -289,9 +289,11 @@ export function renderPopup(p, pop) {
     }
     case "page": {
       const key = pop.key, isHome = key === "home", r = isHome ? null : p.rooms.find(x => x.id === key); if (!isHome && !r) return nothing;
-      const cur = p.pageCfg(key), d = pop.draft || { ...cur, hidden: [...(cur.hidden || [])], order: [...(cur.order || [])], ticker: { ...(cur.ticker || {}) }, lines: (cur.lines || []).map(l => ({ ...l })) };
+      const cur = p.pageCfg(key), d = pop.draft || { ...cur, hidden: [...(cur.hidden || [])], shown: [...(cur.shown || [])], order: [...(cur.order || [])], ticker: { ...(cur.ticker || {}) }, lines: (cur.lines || []).map(l => ({ ...l })) };
       const upd = patch => p.openPopup({ ...pop, draft: { ...d, ...patch } });
-      const all = p.orderCards(p.pageCards(key), d.order), hid = new Set(d.hidden);
+      const all = p.orderCards(p.pageCards(key), d.order), curated = !!p.config.curated, shw = new Set(d.shown),
+        hid = curated ? new Set(all.filter(c => !shw.has(c.key)).map(c => c.key)) : new Set(d.hidden);   // curated: only the chosen cards show
+      const flip = k => curated ? upd({ shown: shw.has(k) ? d.shown.filter(x => x !== k) : [...d.shown, k] }) : upd({ hidden: hid.has(k) ? d.hidden.filter(x => x !== k) : [...d.hidden, k] });
       const move = (i, dir) => { const keys = all.map(c => c.key), j = i + dir; if (j < 0 || j >= keys.length) return; [keys[i], keys[j]] = [keys[j], keys[i]]; upd({ order: keys }); };
       const kinds = TICKER_KINDS[isHome ? "home" : "room"];
       const defImage = isHome ? (p.config.homeImage || "") : ((p.config.roomImage || "").replace("{slug}", r.slug));
@@ -301,8 +303,9 @@ export function renderPopup(p, pop) {
           <label class="f"><span>${t("Foto")}<small>${t("pad of URL")}</small></span><input type="text" .value=${d.image || ""} placeholder=${defImage} @change=${e => upd({ image: e.target.value || undefined })}></label>
         </div>
         <div class="prow" style="margin-top:18px"><span>${t("Kaarten")}</span><b>${t("{a} van {b} zichtbaar", { a: all.length - hid.size, b: all.length })}</b></div>
+        ${curated ? html`<div class="chips"><button @click=${() => upd({ shown: all.map(c => c.key) })}>${t("Alles aan")}</button><button @click=${() => upd({ shown: [] })}>${t("Alles uit")}</button></div>` : nothing}
         <ul class="plist">${all.map((c, i) => html`<li class=${hid.has(c.key) ? "off" : ""}><ha-icon icon=${hid.has(c.key) ? "mdi:eye-off-outline" : "mdi:eye-outline"}></ha-icon><div>${c.label}<small>${c.key.includes(".") || c.key.startsWith("device:") ? c.key : ""}</small></div>
-          <span class="btns"><button title=${hid.has(c.key) ? t("Tonen") : t("Verbergen")} @click=${() => upd({ hidden: hid.has(c.key) ? d.hidden.filter(k => k !== c.key) : [...d.hidden, c.key] })}><ha-icon icon=${hid.has(c.key) ? "mdi:eye-outline" : "mdi:eye-off-outline"}></ha-icon></button><button title=${t("Omhoog")} ?disabled=${i === 0} @click=${() => move(i, -1)}>↑</button><button title=${t("Omlaag")} ?disabled=${i === all.length - 1} @click=${() => move(i, 1)}>↓</button></span></li>`)}
+          <span class="btns"><button title=${hid.has(c.key) ? t("Tonen") : t("Verbergen")} @click=${() => flip(c.key)}><ha-icon icon=${hid.has(c.key) ? "mdi:eye-outline" : "mdi:eye-off-outline"}></ha-icon></button><button title=${t("Omhoog")} ?disabled=${i === 0} @click=${() => move(i, -1)}>↑</button><button title=${t("Omlaag")} ?disabled=${i === all.length - 1} @click=${() => move(i, 1)}>↓</button></span></li>`)}
           ${!all.length ? html`<li><div>${t("Geen kaarten op deze pagina")}</div></li>` : nothing}</ul>
         <div class="prow" style="margin-top:18px"><span>${t("Meldingenregel")}</span><b>${t("tik om uit/aan te zetten")}</b></div>
         <div class="chips">${Object.entries(kinds).map(([k, l]) => html`<button class=${d.ticker[k] === false ? "" : "on"} @click=${() => upd({ ticker: { ...d.ticker, [k]: d.ticker[k] === false ? undefined : false } })}>${t(l)}</button>`)}</div>
@@ -310,7 +313,7 @@ export function renderPopup(p, pop) {
         <div class="form lines">${(d.lines || []).map((l, i) => html`<div class="lrow"><input type="text" .value=${l.icon || ""} placeholder="mdi:text" @change=${e => upd({ lines: d.lines.map((x, j) => j === i ? { ...x, icon: e.target.value || undefined } : x) })}><input type="text" .value=${l.text || ""} placeholder=${t("template, bv. {{ states('sensor.x') }} °C")} @change=${e => upd({ lines: d.lines.map((x, j) => j === i ? { ...x, text: e.target.value } : x) })}><button @click=${() => upd({ lines: d.lines.filter((_, j) => j !== i) })}>×</button></div>`)}
           <button class="addline" @click=${() => upd({ lines: [...(d.lines || []), { icon: "mdi:text", text: "" }] })}>${t("+ eigen regel")}</button></div>
         <div class="modes n3" style="margin-top:18px">
-          <button class="on" @click=${() => p.savePage(key, { title: d.title, image: d.image, lines: (d.lines || []).filter(l => l.text).length ? d.lines.filter(l => l.text) : undefined, hidden: d.hidden.length ? d.hidden : undefined, order: d.order.length ? d.order : undefined, ticker: Object.values(d.ticker).some(v => v === false) ? Object.fromEntries(Object.entries(d.ticker).filter(([, v]) => v === false)) : undefined })}>${t("Opslaan")}</button>
+          <button class="on" @click=${() => p.savePage(key, { title: d.title, image: d.image, lines: (d.lines || []).filter(l => l.text).length ? d.lines.filter(l => l.text) : undefined, hidden: d.hidden.length ? d.hidden : undefined, shown: d.shown.length ? d.shown : undefined, order: d.order.length ? d.order : undefined, ticker: Object.values(d.ticker).some(v => v === false) ? Object.fromEntries(Object.entries(d.ticker).filter(([, v]) => v === false)) : undefined })}>${t("Opslaan")}</button>
           <button @click=${() => p.savePage(key, null)}>${t("Herstel")}</button>
           <button data-close>${t("Annuleren")}</button></div></div>`;
     }

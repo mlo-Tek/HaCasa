@@ -112,6 +112,7 @@ export function renderSettings(p) {
       ${sec(t("Gedrag"), "", html`
         ${field(t("Batterij-grens"), number(d.home?.lowBattery ?? 20, v => setHome("lowBattery", v)), t("onder dit percentage in Aandacht"))}
         ${field(t("Controleren op updates"), check(!d.noUpdateCheck, v => set("noUpdateCheck", v ? undefined : true)), t("melding op de startpagina als er een nieuwe HaCasa Nova is (alleen voor beheerders)"))}
+        ${field(t("Alleen gekozen kaarten"), check(d.curated, v => set("curated", v ? true : undefined)), t("niets verschijnt vanzelf: je kiest per pagina welke kaarten er staan (Pagina's)"))}
         ${field(t("Lichtscènes"), check(!d.noPresets, v => set("noPresets", v ? undefined : true)), t("kaart in elke kamer met lampen: sla lampstanden op en roep ze terug"))}
         <div class="f"><span>${t("Slaapstand na")}<small>${t("minuten zonder aanraking; 0 = uit")}</small></span><div class="row" style="grid-template-columns:1fr max-content;margin:0">${number(d.idleMinutes ?? 0, v => set("idleMinutes", v))}<button @click=${() => p.showIdle()}>${t("Nu tonen")}</button></div></div>
         <div class="f"><span>${t("Installatiehulp")}<small>${t("opnieuw doorlopen; wijzigt alleen wat je invult")}</small></span><button @click=${() => p.openPopup({ type: "wizard", step: 0 })}>${t("Opnieuw starten")}</button></div>
@@ -119,7 +120,7 @@ export function renderSettings(p) {
 
     paginas: sec(t("Pagina's"), t("per pagina: titel, foto, kaarten (tonen, verbergen, volgorde) en de meldingenregel"), html`
       <ul class="rooms">${["home", ...p.rooms.map(r => r.id)].map(key => { const pc = d.pages?.[key] || {}; const n = (pc.hidden || []).length, o = (pc.order || []).length, tk = Object.values(pc.ticker || {}).filter(v => v === false).length;
-        return html`<li class="on"><span>${pageName(key)}<small>${[pc.title && t("titel: {t}", { t: pc.title }), pc.image && t("eigen foto"), n && t("{n} verborgen", { n }), o && t("eigen volgorde"), tk && t("{n} meldingen uit", { n: tk }), (pc.lines || []).length && t("{n} eigen regels", { n: pc.lines.length })].filter(Boolean).join(" · ") || t("standaard")}</small></span>
+        return html`<li class="on"><span>${pageName(key)}<small>${[pc.title && t("titel: {t}", { t: pc.title }), pc.image && t("eigen foto"), d.curated ? t("{n} gekozen", { n: (pc.shown || []).length }) : n && t("{n} verborgen", { n }), o && t("eigen volgorde"), tk && t("{n} meldingen uit", { n: tk }), (pc.lines || []).length && t("{n} eigen regels", { n: pc.lines.length })].filter(Boolean).join(" · ") || t("standaard")}</small></span>
           <button @click=${() => p.openPopup({ type: "page", key })}>${t("Instellen")}</button>${Object.keys(pc).length ? html`<button title=${t("Herstel")} @click=${() => { const pages = { ...d.pages }; delete pages[key]; set("pages", pages); }}>×</button>` : nothing}</li>`; })}</ul>
       <div class="hint">${t("Sneller: houd de titel van een pagina ingedrukt.")}</div>`),
 
