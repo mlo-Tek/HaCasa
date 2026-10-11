@@ -1,13 +1,28 @@
 # First run
 
-The first time a user opens HaCasa Nova, a four-step setup appears. Every step can be skipped, and everything can be changed later under **More → Panel settings**.
+The first time a user opens HaCasa Nova, a setup assistant appears. Every step can be skipped, and everything can be changed later under **More → Panel settings**.
 
 ![Setup wizard](assets/screenshots/wizard.png)
 
-1. **Welcome**: language (automatic follows your Home Assistant profile, or pick English, Nederlands or Deutsch) and the title shown top left.
-2. **Rooms**: tick the areas that should become rooms. Their order is the order of the navigation; you can change it later under *Rooms*.
-3. **Home page**: the weather entity, thermostat, alarm panel, and the power and energy sensors for the home view. Left empty, the panel picks the first of each it finds.
-4. **Photos**: where room photos live. See [Room photos](photos.md).
+The first question is **how you want to set up**:
+
+- **Automatic**: like before. Every device that is found shows up by itself. Four short steps: welcome, rooms, home page, photos.
+- **Choose myself**: nothing is shown until you pick it. The assistant walks through the home page and then room by room. See below.
+- **Later**: only the rooms are set up; every page stays empty and you fill it under *Page settings* when you like. You can also **import a settings file** here, for example one exported from another user.
+
+## Choose myself
+
+1. **Welcome**: language, title, and (optional) a backup of the current settings as a file.
+2. **Rooms**: tick the areas that become rooms, set their order, give a room another name or a photo.
+3. **Home page**: weather, thermostat, alarm panel, power sensor.
+4. **Cards on the home page**: pick the cards, scenes included. A small preview shows what the page will look like.
+5. **Status row**: which buttons sit under the greeting, who is home, and which notices the line shows.
+6. **Motion & doorbell**, **Quick actions**: sensors for the bar at the bottom, camera pop-up, buttons under the greeting.
+7. **One step per room**: devices are grouped by type (lights, heating, media, covers, switches, sensors) with a search field. Nothing is chosen by default; **Use recommendation** picks lights and heating, **Like another room** copies the kinds of cards of a room you already did. Several media players that belong to one device are shown as a single card.
+8. **Never show**: devices that must appear nowhere, such as sensors in a storage room. Batteries and diagnostic entities are listed separately.
+9. **Photos**.
+
+Devices that appear later (a new lamp, a new sensor) are not added by themselves. A notice on the home page and on the room page tells you that something new was found, and you choose where it goes.
 
 ## How rooms are built
 
@@ -25,4 +40,4 @@ To copy a setup to another user or another Home Assistant, use **Settings → Ge
 
 ## Running it again
 
-**Settings → General → Setup wizard** runs the wizard again. **Reset everything** (top of the settings page) clears all settings of the current user.
+**Settings → General → Setup wizard** runs the assistant again at any time. **Reset everything** (top of the settings page) clears all settings of the current user.

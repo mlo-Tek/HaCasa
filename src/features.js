@@ -116,7 +116,23 @@ export const featureStyles = `
   .popup.wiz .modes.n3 button{padding:14px 22px}
   .popup.wiz .chips{margin-top:14px}
   .popup.wiz .modes button:disabled{opacity:.35;pointer-events:none}
-  .popup.wiz .plist{max-height:38vh;overflow:auto;scrollbar-width:none}
+  .popup.wiz .wbody{max-height:calc(80vh - 250px);overflow:auto;scrollbar-width:none;margin:0 -4px;padding:0 4px}
+  .popup.wiz .dots{flex-wrap:wrap}
+  .popup.wiz .ghead{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;opacity:.65;margin:16px 0 6px;cursor:pointer}
+  .popup.wiz .wsearch{width:100%;box-sizing:border-box;margin-top:12px;border:0;border-radius:var(--r-sm);background:rgba(0,0,0,.25);color:#fff;font:inherit;font-size:14px;padding:11px 14px}
+  .popup.wiz .prow.hd b{grid-column:1/-1;font-weight:400;opacity:.65;font-size:12px;margin-top:-4px}
+  .popup.wiz .likef small{display:block;margin-top:2px}
+  .popup.wiz .likef{margin-top:12px;display:grid;grid-template-columns:1fr;gap:6px;align-items:center}
+  .popup.wiz .plist.rooms li{grid-template-columns:1fr max-content;align-items:center}
+  .popup.wiz .plist.rooms .rn{display:grid;gap:6px}
+  .popup.wiz .plist.rooms .rn input{border:0;border-radius:8px;background:rgba(0,0,0,.25);color:#fff;font:inherit;font-size:13px;padding:8px 10px;min-width:0}
+  .popup.wiz .pv{margin-top:12px;border-radius:12px;background:rgba(0,0,0,.25);padding:14px 16px;display:grid;gap:10px}
+  .popup.wiz .pv-title{font-size:20px;font-weight:700}
+  .popup.wiz .pv-row{display:flex;flex-wrap:wrap;gap:6px}
+  .popup.wiz .pv-chip,.popup.wiz .pv-tile{display:inline-flex;align-items:center;gap:4px;border-radius:999px;background:rgba(255,255,255,.14);font-size:12px;font-weight:600;padding:6px 10px}
+  .popup.wiz .pv-chip ha-icon{--mdc-icon-size:14px}
+  .popup.wiz .pv-tile{border-radius:10px;padding:14px 12px;min-width:84px;background:rgba(255,255,255,.2)}
+  .popup.wiz .pv-line,.popup.wiz .pv-empty{font-size:12px;opacity:.75}
   .popup.wiz .plist li{cursor:pointer}
   .popup.wiz .plist li small{overflow-wrap:anywhere}
   .popup li img.avatar{width:34px;height:34px;border-radius:50%;object-fit:cover;margin-left:-2px}

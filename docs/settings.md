@@ -45,6 +45,10 @@ When you use the [dashboard card](installation.md#2b-dashboard-card), its `confi
 | `home.scenes` | list of scene ids |
 | `home.waste` | list of `{entity, label}` |
 | `home.energy` | `{power, today, returned, gas}` sensor ids |
+| `home.pills` | buttons under the greeting: any of `lights`, `doors`, `attention` (leave out = all) |
+| `home.people` | `false` hides the *Who is home* button |
+| `neverShow` | entity ids that never appear anywhere (card, room temperature, notices) |
+| `pages.<key>.seen` | cards the user has already seen; with *Only chosen cards*, newer ones show up as a notice instead of a card |
 | `home.lowBattery` | battery percentage that counts as low (default 20) |
 | `more` | extra links: `{label, sub, icon, path}` |
 

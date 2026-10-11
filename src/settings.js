@@ -101,6 +101,8 @@ export function renderSettings(p) {
       ${sec(t("Instellingenbestand"), t("de instellingen staan per gebruiker in Home Assistant; een bestand maakt ze overdraagbaar"), html`
         <div class="f"><span>${t("Exporteren")}<small>${t("download alle instellingen als JSON")}</small></span><button @click=${() => p.exportSettings()}>${t("Download")}</button></div>
         <div class="f"><span>${t("Importeren")}<small>${t("een export of een oude config.json; wordt samengevoegd met wat er al staat")}</small></span><input type="file" accept="application/json,.json" @change=${e => { if (e.target.files[0]) p.importSettings(e.target.files[0]); e.target.value = ""; }}></div>`)}
+      ${(d.neverShow || []).length ? sec(t("Nooit tonen"), t("deze apparaten komen nergens voor: niet als kaart, niet in temperatuur of meldingen"), html`
+        <ul class="rooms">${d.neverShow.map(id => html`<li class="on"><span>${p.hass.states[id]?.attributes.friendly_name || id}<small>${id}</small></span><button title=${t("Tonen")} @click=${() => set("neverShow", d.neverShow.filter(x => x !== id).length ? d.neverShow.filter(x => x !== id) : undefined)}>×</button></li>`)}</ul>`) : nothing}
       ${sec(t("Weergave"), "", html`
         ${field(t("Taal"), html`<select @change=${e => set("language", e.target.value || undefined)}><option value="" ?selected=${!d.language}>${t("automatisch (taal van Home Assistant)")}</option>${Object.entries(LANGUAGES).map(([k, l]) => html`<option value=${k} ?selected=${d.language === k}>${l}</option>`)}</select>`, t("direct zichtbaar na opslaan"))}
         ${field(t("Titel"), text(d.title, v => set("title", v), t("Thuis") + "."), t("linksboven in de navigatie"))}
@@ -142,6 +144,8 @@ export function renderSettings(p) {
         ${field(t("Media"), check(d.home?.mediaHome !== false, v => setHome("mediaHome", v ? undefined : false)), t("spelende of gepauzeerde mediaspelers als kaart"))}
         ${field(t("Weer op telefoon"), check(d.home?.wxMobile === true, v => setHome("wxMobile", v ? true : undefined)), t("het weerblok naast de begroeting ook op kleine schermen"))}
         ${field(t("Weerkaart"), check(d.home?.weatherCard === true, v => setHome("weatherCard", v ? true : undefined)), t("ook als het weer al naast de begroeting staat"))}
+        ${field(t("Statuszeile"), html`<div class="chips">${[["lights", t("Lampen")], ["doors", t("Deuren & ramen")], ["attention", t("Aandacht")]].map(([k, l]) => { const cur = d.home?.pills || ["lights", "doors", "attention"], on = cur.includes(k);
+          return html`<button class=${on ? "on" : ""} @click=${() => setHome("pills", on ? cur.filter(x => x !== k) : [...cur, k])}>${l}</button>`; })}<button class=${d.home?.people !== false ? "on" : ""} @click=${() => setHome("people", d.home?.people === false ? undefined : false)}>${t("Wie is thuis")}</button></div>`, t("knoppen onder de begroeting en de aanwezigheid in de navigatie"))}
         ${field(t("Scènes"), html`<div class="chips">${scenes.map(s => { const on = chosen ? chosen.includes(s.entity_id) : scenes.indexOf(s) < 4;
           return html`<button class=${on ? "on" : ""} @click=${() => { const cur = chosen || scenes.slice(0, 4).map(x => x.entity_id); setHome("scenes", on ? cur.filter(x => x !== s.entity_id) : [...cur, s.entity_id]); }}>${s.attributes.friendly_name}</button>`; })}${!scenes.length ? html`<small>${t("Geen scènes gevonden")}</small>` : nothing}</div>`, t("op de scèneskaart"))}`)}`,
 

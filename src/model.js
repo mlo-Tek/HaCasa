@@ -130,7 +130,8 @@ function linkMedia(hass, media, config) {
 
 /** Rooms in navigation order. */
 export function buildRooms(hass, config) {
-  const byArea = entitiesByArea(hass);
+  const never = new Set(config.neverShow || []), byArea = entitiesByArea(hass);
+  if (never.size) for (const [k, l] of byArea) byArea.set(k, l.filter(e => !never.has(e.id)));
   const areas = Object.values(hass.areas || {});
   let rooms = areas.map(a => {
     const ents = classify(byArea.get(a.area_id) || [], config, hass);
@@ -187,7 +188,7 @@ export function buildHome(hass, config, rooms, notifications = []) {
   for (const r of rooms) for (const e of r.ents.battery) { const v = num(e.state?.state); if (v != null && v <= low)
     attention.push({ kind: "battery", id: e.id, name: (e.state?.attributes?.friendly_name || e.id).replace(/ batter(y|ij)/i, ""), room: r, value: v, text: t("batterij {n}%", { n: v }), icon: "mdi:battery-20" }); }
   for (const n of notifications) attention.push({ kind: "notification", id: n.notification_id, name: n.title || t("Melding"), text: (n.message || "").replace(/\s+/g, " ").slice(0, 80), icon: "mdi:bell-outline", since: n.created_at });
-  for (const s of Object.values(hass.states)) if (domain(s.entity_id) === "update" && s.state === "on" && !(s.attributes.skipped_version && s.attributes.skipped_version === s.attributes.latest_version))
+  for (const s of Object.values(hass.states)) if (domain(s.entity_id) === "update" && s.state === "on" && !(config.neverShow || []).includes(s.entity_id) && !(s.attributes.skipped_version && s.attributes.skipped_version === s.attributes.latest_version))
     attention.push({ kind: "update", id: s.entity_id, name: s.attributes.title || (s.attributes.friendly_name || s.entity_id).replace(/ update$/i, ""), text: t("update {v}", { v: s.attributes.latest_version || "" }).trim(), icon: "mdi:update", since: s.last_changed });
   for (const s of Object.values(hass.states)) if (domain(s.entity_id) === "automation" && s.state === "unavailable")
     attention.push({ kind: "automation", id: s.entity_id, name: s.attributes.friendly_name || s.entity_id, text: t("automatisering mislukt"), icon: "mdi:robot-dead-outline", since: s.last_changed });
