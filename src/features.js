@@ -187,9 +187,40 @@ export const featureStyles = `
   .wzsug input[type=checkbox]{accent-color:#fff;width:18px;height:18px}
   .wzsug li:not(.on){opacity:.65}
   .wzrooms li{grid-template-columns:minmax(0,1fr) max-content;padding:9px 12px}
-  .wzsec{margin-top:8px;padding-top:7px;border-top:1px solid var(--line)}
+  .wzsec{margin-top:8px;padding:7px 0 4px 10px;border-top:1px solid var(--line);border-radius:2px}
+  .wzsec.foc{box-shadow:inset 3px 0 0 var(--accent)}
+  .wzsec.foc>.wzsh{opacity:1}
   .wzsh{display:flex;justify-content:space-between;gap:8px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;opacity:.7;margin-bottom:6px}
   .wzgl{font-size:10px;opacity:.7;text-transform:uppercase;letter-spacing:.6px}
+  /* tiles and sections that open up: devices behind a summary tile, lamp groups, cameras in order */
+  .wz li .st{display:inline-flex;align-items:center;gap:8px}
+  .wz li .st .chev{--mdc-icon-size:18px;opacity:.8}
+  .wz li .st button.tgl{border:1px solid var(--line-on,rgba(255,255,255,.35));background:rgba(255,255,255,.12);color:inherit;font:inherit;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:5px 12px;border-radius:999px;cursor:pointer}
+  .wz li .st button.tgl:hover{background:rgba(255,255,255,.22)}
+  .wz .chips button.wzchip{border:0;color:inherit;font:inherit;font-size:12px;font-weight:600;cursor:pointer;opacity:1;background:rgba(255,255,255,.18);padding:7px 12px}
+  .wz .chips button.wzchip:hover{background:rgba(255,255,255,.28)}
+  .wz .chips button.wzchip.sel{background:rgba(255,255,255,.4)}
+  .wzchip b{margin-left:7px;font-weight:700;opacity:.6}
+  .wz .chips button.wzmore{border:0;background:none;color:inherit;font:inherit;font-size:12px;opacity:.75;padding:7px 4px;cursor:pointer;text-decoration:underline}
+  .wzdet{margin:4px 8px 8px;padding-top:8px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+  .wzdh{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;opacity:.9}
+  .wzdg h6{margin:0 0 3px;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;opacity:.6}
+  .wzdr{display:flex;justify-content:space-between;gap:12px;font-size:13px;font-weight:600;padding:5px 2px;border-bottom:1px solid rgba(255,255,255,.07)}
+  .wzdr span{min-width:0;overflow-wrap:anywhere}
+  .wzdr em{font-style:normal;font-size:11px;letter-spacing:1px;text-transform:uppercase;opacity:.7;white-space:nowrap}
+  .wzcams li{align-items:start}
+  .wzcm{display:flex;flex-direction:column;gap:6px;min-width:0}
+  .wzcmh{display:flex;align-items:center;gap:10px;border:0;background:none;color:inherit;font:inherit;font-weight:600;text-align:left;cursor:pointer;padding:0;min-width:0}
+  .wzcmh span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .wzcmh em{font-style:normal;font-size:11px;letter-spacing:1px;text-transform:uppercase;opacity:.8;white-space:nowrap}
+  .wzcm .wzcap{padding:0}
+  .wzgrp{border:1px solid var(--line);border-radius:10px;padding:8px 10px 10px;margin-top:8px;background:rgba(255,255,255,.05)}
+  .wzgrp.off{opacity:.6}
+  .wzgh{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+  .wzgh input{flex:1;min-width:0;background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:8px;color:inherit;font:inherit;font-size:14px;font-weight:600;padding:7px 10px}
+  .wzgrp .wzcap{padding:6px 0 2px}
+  .wzadd{display:inline-flex;align-items:center;gap:6px;margin-top:8px;border:1px dashed var(--line-on,rgba(255,255,255,.4));background:none;color:inherit;font:inherit;font-size:13px;font-weight:600;padding:8px 14px;border-radius:999px;cursor:pointer}
+  .wzadd:hover{background:rgba(255,255,255,.1)}
   .wz .form .f.wzfoc{box-shadow:0 0 0 2px var(--accent) inset}
   .wzsel{display:flex;align-items:center;gap:8px;min-width:0}
   .wzsel select{flex:1}

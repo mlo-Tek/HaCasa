@@ -391,6 +391,7 @@ export const styles = css`
   .popup .rh{margin:16px 0 0;font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;opacity:.65}
   .popup .rh + ul{margin-top:6px}
   .popup li small{display:block;font-size:12px;font-weight:500;opacity:.7;margin-top:2px}
+  .popup li .sfx{font-weight:400;opacity:.6;margin-left:2px}
   .popup li .st{font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;opacity:.8;white-space:nowrap}
   .popup li ha-icon{--mdc-icon-size:26px}
   .popup li img.ico{width:26px;height:26px}

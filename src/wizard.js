@@ -5,7 +5,7 @@
 import { t, LANGUAGES } from "./i18n.js";
 import { html, nothing } from "lit";
 import { classMap } from "lit/directives/class-map.js";
-import { domain, num } from "./util.js";
+import { domain, num, isOn } from "./util.js";
 import { buildRooms, buildHome, deviceName, isGroup, entitiesByArea, name } from "./model.js";
 import { mergeConfig } from "./settings.js";
 import { homeCards, SUM_KINDS, sumData } from "./cards.js";
@@ -60,7 +60,8 @@ export const SRC = [["temp", "temp"], ["hum", "hum"], ["lux", "lux"]];
 export function roomDefault(p, r, pg = {}, cur = false) {
   const cats = roomCats(p, r), keep = cur && pg.shown?.length ? pg.shown : null, sources = { ...(pg.sources || {}) };
   for (const [k, lst] of [["temp", r.ents.temp], ["hum", r.ents.hum], ["lux", r.ents.lux]]) if (!sources[k] && lst.length) sources[k] = bestSource(p, lst);
-  return { shown: keep ? [...keep] : cats.flatMap(c => c.items.filter(i => !i.dup).map(i => i.key)), sources };
+  const grp = (p.userConfig?.groups || []).filter(g => g.room === r.id && g.members?.length);
+  return { shown: keep ? [...keep] : [...cats.flatMap(c => c.items.filter(i => !i.dup && !grp.some(g => g.members.includes(i.key))).map(i => i.key)), ...grp.map(g => "group:" + g.id)], sources };
 }
 
 /** what the panel already knows: the starting point of the assistant. Everything that exists is switched on, except groups that only repeat their members. */
@@ -73,7 +74,7 @@ export function wizardDefaults(p) {
     tickerHome: Object.keys(TICKER_KINDS.home).filter(k => !cur || pg.home?.ticker?.[k] !== false), tickerRoom: Object.keys(TICKER_KINDS.room).filter(k => !cur || pg[p.rooms[0]?.id]?.ticker?.[k] !== false),
     banner: cur ? (h.bannerSensors || p.rooms.flatMap(r => r.ents.motion.map(e => e.id))) : p.rooms.flatMap(r => r.ents.motion.map(e => e.id)),
     cams: (h.cams || cams.map(s => ({ camera: s.entity_id, carousel: true, popup: camDetections(hass, s.entity_id).filter(x => x.kind !== "animal").map(x => x.id) }))).map(c => ({ ...c })),
-    quick: (h.quick || []).map(q => ({ ...q })), never: [...(p.config.neverShow || [])], order: { home: pg.home?.order }, sources: {}, shown: {} };
+    quick: (h.quick || []).map(q => ({ ...q })), groups: (p.userConfig?.groups || []).map(g => ({ ...g, members: [...(g.members || [])] })), never: [...(p.config.neverShow || [])], order: { home: pg.home?.order }, sources: {}, shown: {} };
   // station 2: the four summary tiles, the cameras, and what else exists
   const hm = p.home, has = [];
   for (const k of SUM_KINDS) if (sumData(p, hm, k).all.length) has.push("sum:" + k);
@@ -124,6 +125,7 @@ export function wizardPatch(p, d) {
     hm.quick = d.quick?.length ? d.quick : undefined; hm.scenes = d.home.scenes || undefined;
   }
   patch.neverShow = d.never?.length ? d.never : undefined;
+  if (!later && d.groups) patch.groups = d.groups.filter(g => g.members?.length).length ? d.groups.filter(g => g.members?.length) : undefined;   // groups of lights (one card for several lamps)
   return patch;
 }
 
@@ -134,7 +136,7 @@ const own = (o, k, v) => Object.defineProperty(o, k, { value: v, writable: true,
 export function previewOf(p, d) {
   const cfg = mergeConfig(p.config, wizardPatch(p, { ...d, mode: "curated" })), pv = Object.create(p), rooms = buildRooms(p.hass, cfg);
   own(pv, "config", cfg); own(pv, "rooms", rooms); own(pv, "home", buildHome(p.hass, cfg, rooms, p.notifications || []));
-  own(pv, "popup", null); own(pv, "searchOpen", false); own(pv, "drawer", false);
+  own(pv, "popup", null); own(pv, "preview", true); own(pv, "searchOpen", false); own(pv, "drawer", false);
   own(pv, "requestUpdate", () => {});      // pv is not an element: a property set while rendering must never schedule a render of its own
   for (const m of ["openPopup", "call", "go", "moreInfo", "goPath", "wake", "loadHourly", "loadCamEvents", "saveUser"]) own(pv, m, () => {});
   for (const m of ["bgOk", "bgUrl", "bgStyle"]) own(pv, m, (...a) => p[m](...a));
@@ -143,12 +145,17 @@ export function previewOf(p, d) {
 const mobile = () => matchMedia("(max-width:900px)").matches;
 const VIRT = () => mobile() ? { w: 390, h: 800 } : { w: 1440, h: 860 };
 /** the home page (or a room) as the real panel draws it; `ring` = keys of strip cards to circle, `css` = extra rules for the ring */
-function stage(pv, { room = null, ring = [], css = "", nav = true, h: hh } = {}) {
+function stage(pv, { room = null, ring = [], only = null, fallback = true, css = "", nav = true, h: hh } = {}) {
   const v = VIRT(), bg = pv.bgUrl(room), u = mobile() ? "" : "--u:1px;--pad:115px;";
-  let n = 0;
-  if (ring.length && !room) { const keys = pv.applyPage("home", homeCards(pv, pv.home)).map(c => c.key); n = keys.findIndex(k => ring.includes(k)) + 1; }
+  let n = 0, hide = "";
+  if ((ring.length || only) && (!room || only)) {
+    const keys = (room ? pv.applyPage(room.id, pv.roomCards(room)) : pv.applyPage("home", homeCards(pv, pv.home))).map(c => c.key);
+    n = keys.findIndex(k => ring.includes(k)) + 1;
+    // only the cards that belong to what is being edited (the others would push it out of view); no match = show all, unless told to show nothing
+    if (only) { const at = keys.flatMap((k, i) => only.includes(k) ? [i + 1] : []); if (at.length || !fallback) hide = `.wzstage .strip>*${at.map(i => `:not(:nth-child(${i}))`).join("")}{display:none}`; }
+  }
   return html`<hcn-fit .w=${v.w} .h=${hh || v.h}><div class="wzstage" style="width:${v.w}px;height:${hh || v.h}px;${u}">
-    <style>.wzstage .strip>:nth-child(${n || 999}){outline:3px solid #f2b63a;outline-offset:2px} ${css}</style>
+    <style>.wzstage .strip>:nth-child(${n || 999}){outline:3px solid #f2b63a;outline-offset:2px} ${hide} ${css}</style>
     <div class=${classMap({ bg: true, grad: !pv.bgOk(bg) })} style=${pv.bgStyle(bg, room?.slug)}></div>
     ${nav ? pv.renderNav(room, false, null) : nothing}
     ${room ? pv.renderRoom(room) : pv.renderHome(pv.home)}</div></hcn-fit>`;
@@ -163,7 +170,8 @@ const toggle = (list, k) => list.includes(k) ? list.filter(x => x !== k) : [...l
 const chip = (label, on, click, { mark = false, title = "" } = {}) => html`<button class=${classMap({ on, off: !on })} title=${title} @click=${click}>${mark ? (on ? "● " : "○ ") : ""}${label}</button>`;
 const capchips = (label, chips) => html`<div class="wzcap"><span>${label}</span><div class="chips">${chips}</div></div>`;
 const box = (inner, { sel = false, off = false } = {}) => html`<div class=${classMap({ wzg: true, sel, off })}>${inner}</div>`;
-const rowi = ({ icon, title, sub = "", state = "", on = false, click = null }) => html`<li class=${classMap({ on, tap: !!click })} @click=${click || nothing}><ha-icon icon=${icon}></ha-icon><div>${title}${sub ? html`<small>${sub}</small>` : nothing}</div><span class="st">${state}</span></li>`;
+/** one row; `stClick` turns the state text into its own on/off button (the row itself then only opens details), `open` adds a chevron */
+const rowi = ({ icon, title, sub = "", state = "", on = false, click = null, stClick = null, open = undefined }) => html`<li class=${classMap({ on, tap: !!click })} @click=${click || nothing}><ha-icon icon=${icon}></ha-icon><div>${title}${sub ? html`<small>${sub}</small>` : nothing}</div><span class="st">${stClick ? html`<button class="tgl" title=${t("Aan/uit")} @click=${e => { e.stopPropagation(); stClick(); }}>${state}</button>` : state}${open === undefined ? nothing : html`<ha-icon class="chev" icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>`}</span></li>`;
 const some = (list, fmt, n = MAX_CHIPS) => [...list.slice(0, n).map(fmt), ...(list.length > n ? [html`<span class="wzmore">${t("+ {n} meer", { n: list.length - n })}</span>`] : [])];
 const note = txt => html`<div class="wznote">${txt}</div>`;
 
@@ -207,20 +215,29 @@ export function renderWizard(p, pop) {
 
   /* ---- 2 · Home page ---- */
   { const f = pop.focus || "sum:lights", sh = d.shown.home || [], on = k => sh.includes(k), fLabel = homeCards(pv, hm).find(c => c.key === f)?.label || f;
-    const sumRow = (k, desc, capLabel, names) => { const sd = sumData(p, hm, k); if (!sd.all.length) return nothing;
-      return box(html`<ul class="wzl">${rowi({ icon: sd.icon[0], title: sd.title, sub: desc, on: on("sum:" + k), state: on("sum:" + k) ? t("Aan") : t("Uit"), click: () => focus("sum:" + k, { draft: { ...d, shown: { ...d.shown, home: toggle(sh, "sum:" + k) } } }) })}</ul>${capchips(capLabel, some(names, x => html`<span class="wzchip">${x}</span>`))}`, { sel: f === "sum:" + k, off: !on("sum:" + k) }); };
-    const byRoom = list => { const m = new Map(); for (const e of list) { const k = e.room?.name || ""; m.set(k, (m.get(k) || 0) + 1); } return [...m].map(([n, c]) => `${n} ${c}`); };
+    // devices of one kind, grouped by room: [{ room, n }]
+    const byRoom = list => { const m = new Map(); for (const e of list) { const k = e.room?.name || t("Zonder kamer"); m.set(k, (m.get(k) || 0) + 1); } return [...m].map(([room, n]) => ({ room, n })); };
+    const stText = (k, sd, e) => k === "lights" ? (isOn(e.state) ? t("Aan") : t("Uit")) : k === "openings" ? (isOn(e.state) ? t("Open") : t("Dicht")) : sd.act.includes(e) ? (k === "climate" ? t("Verwarmt") : t("actief")) : t("Uit");
+    const sumRow = (k, desc, capLabel) => { const sd = sumData(p, hm, k); if (!sd.all.length) return nothing;
+      const key = "sum:" + k, isTile = on(key), ex = pop.exp?.k === k ? pop.exp : null, groups = byRoom(sd.all), chips = ex ? groups : groups.slice(0, MAX_CHIPS);
+      const openAll = () => focus(key, { exp: ex && ex.room == null ? null : { k, room: null } }), openRoom = room => focus(key, { exp: ex?.room === room ? { k, room: null } : { k, room } });
+      const items = ex ? (ex.room != null ? sd.all.filter(e => (e.room?.name || t("Zonder kamer")) === ex.room) : sd.all) : [], rooms = new Map();
+      for (const e of items) { const r = e.room?.name || t("Zonder kamer"); if (!rooms.has(r)) rooms.set(r, []); rooms.get(r).push(e); }
+      return box(html`<ul class="wzl">${rowi({ icon: sd.icon[0], title: sd.title, sub: desc, on: isTile, state: isTile ? t("Aan") : t("Uit"), open: !!ex, click: openAll, stClick: () => focus(key, { draft: { ...d, shown: { ...d.shown, home: toggle(sh, key) } } }) })}</ul>
+        ${capchips(capLabel, [...chips.map(g => html`<button class=${classMap({ wzchip: true, sel: ex?.room === g.room })} @click=${() => openRoom(g.room)}>${g.room}<b>${g.n}</b></button>`), ...(!ex && groups.length > MAX_CHIPS ? [html`<button class="wzmore" @click=${openAll}>${t("+ {n} meer", { n: groups.length - MAX_CHIPS })}</button>`] : [])])}
+        ${ex ? html`<div class="wzdet">${ex.room != null ? html`<div class="wzdh"><span>${ex.room}</span><button class="wzlink" @click=${() => focus(key, { exp: { k, room: null } })}>${t("Alles tonen")}</button></div>` : nothing}
+          ${[...rooms].map(([r, list]) => html`<div class="wzdg">${ex.room == null && rooms.size > 1 ? html`<h6>${r}</h6>` : nothing}${list.map(e => html`<div class="wzdr"><span>${name(hass, e)}</span><em>${stText(k, sd, e)}</em></div>`)}</div>`)}</div>` : nothing}`, { sel: f === key, off: !isTile }); };
     const more = [["climate", t("Thermostaat"), !!hm.climate], ["weather", t("Weer"), !!hm.weather], ["agenda", t("Agenda"), hm.calendars.length > 0], ["waste", t("Afval"), hm.waste.length > 0], ["energy", t("Energie"), !!(hm.energy.power)], ["pv", t("Zonne-energie"), !!hm.energy.pv], ["scenes", t("Scènes"), hm.scenes.length > 0], ["attention", t("Aandacht"), true], ["cams", t("Camera's"), hm.camCarousel.length > 0 || d.cams.length > 0]].filter(x => x[2]);
     const order = (sh || []).map(k => ({ id: k, body: pv.applyPage("home", homeCards(pv, hm)).find(c => c.key === k)?.label || k })).filter(x => pv.applyPage("home", homeCards(pv, hm)).some(c => c.key === x.id));
     stations.push({ title: t("Wat komt er op de startpagina?"), sub: t("Elk soort apparaat wordt één verzamelkaart. De voorvertoning rechts springt naar de gekozen regel."), icon: "mdi:shape-outline", tag: t("Kaarten met voorvertoning"),
-      left: html`${sumRow("lights", t("Eén kaart („3 van 33”). Tikken opent de lijst om te schakelen."), t("Kamers"), byRoom(hm.lights))}
-        ${sumRow("openings", t("Eén kaart („1 open”). Tikken toont elk raam en elke deur."), t("Kamers"), byRoom([...hm.doors, ...hm.windows]))}
-        ${sumRow("climate", t("Eén kaart voor alle klimaatapparaten."), t("Apparaten"), hm.climates.map(e => e.room.name))}
-        ${sumRow("media", t("Eén kaart voor alle spelers."), t("Spelers"), hm.media.map(e => name(hass, e)))}
+      left: html`${sumRow("lights", t("Eén kaart („3 van 33”). Tikken opent de lijst om te schakelen."), t("Kamers"))}
+        ${sumRow("openings", t("Eén kaart („1 open”). Tikken toont elk raam en elke deur."), t("Kamers"))}
+        ${sumRow("climate", t("Eén kaart voor alle klimaatapparaten."), t("Kamers"))}
+        ${sumRow("media", t("Eén kaart voor alle spelers."), t("Kamers"))}
         ${box(capchips(t("Overige kaarten"), more.map(([k, l]) => chip(l, on(k), () => focus(k, { draft: { ...d, shown: { ...d.shown, home: toggle(sh, k) } } })))))}
         ${order.length > 1 ? html`<div class="wzh wzhb"><span>${t("Volgorde")}</span><button class="wzlink" @click=${() => p.openPopup({ ...pop, draft: d, orderOpen: !pop.orderOpen })}>${pop.orderOpen ? t("Verbergen") : t("Volgorde aanpassen")}</button></div>${pop.orderOpen ? sortable(order, l => upd({ order: { ...d.order, home: l }, shown: { ...d.shown, home: l } }, { orderOpen: true })) : nothing}` : nothing}`,
       right: html`${rt(t("Voorvertoning · jouw startpagina"), t("Toont: {n}", { n: fLabel }))}
-        <div class="wzpv">${stage(pv, { ring: [f], h: mobile() ? undefined : 760 })}</div>
+        <div class="wzpv">${stage(pv, { ring: [f], only: f.startsWith("sum:") ? SUM_KINDS.map(k => "sum:" + k) : [f], h: mobile() ? undefined : 760 })}</div>
         ${f.startsWith("sum:") && on(f) ? html`${rt(t("Na het tikken: elke lamp apart schakelen"))}${popBox(pv, { type: "sum", kind: f.slice(4), limit: 2 })}` : nothing}
         ${note(t("Tikken schakelt niets, maar opent dit venster; daar schakel je elke lamp apart of alles tegelijk. Alle aantallen volgen jouw huis: bij 8 thermostaten zijn het 8 regels."))}` }); }
 
@@ -263,39 +280,66 @@ export function renderWizard(p, pop) {
         ${hm.energy.power ? html`${rt(t("Na het tikken"))}${popBox(pv, { type: "energy", hourly: null })}` : note(t("Kies minstens het huisverbruik om de energiekaart te tonen."))}` }); }
 
   /* ---- 5 · Cameras ---- */
-  { const cams = Object.values(hass.states).filter(s => domain(s.entity_id) === "camera" && !hass.entities?.[s.entity_id]?.hidden), cur = d.cams, f = pop.focus || cams[0]?.entity_id;
-    const get = id => cur.find(c => c.camera === id) || { camera: id, carousel: false, popup: [] }, setCam = (id, patch) => { const c = { ...get(id), ...patch }; upd({ cams: cur.some(x => x.camera === id) ? cur.map(x => x.camera === id ? c : x) : [...cur, c] }, { focus: id }); };
+  { const cams = Object.values(hass.states).filter(s => domain(s.entity_id) === "camera" && !hass.entities?.[s.entity_id]?.hidden), camIds = cams.map(s => s.entity_id), cur = d.cams, f = pop.focus || camIds[0];
+    // the carousel order = the order of this list: the ones already chosen first, new cameras behind them
+    const order = [...cur.map(c => c.camera).filter(id => camIds.includes(id)), ...camIds.filter(id => !cur.some(c => c.camera === id))];
+    const get = id => cur.find(c => c.camera === id) || { camera: id, carousel: false, popup: [] };
+    const setCam = (id, patch) => upd({ cams: order.map(x => x === id ? { ...get(id), ...patch } : get(x)) }, { focus: id });
     const KL = { person: t("Persoon"), vehicle: t("Voertuig"), animal: t("Dier"), motion: t("Beweging"), bell: t("Deurbel") };
+    // detections of one kind (person, vehicle …) are one choice, even when the camera reports it with several sensors
+    const kindsOf = id => { const m = new Map(); for (const x of camDetections(hass, id)) { if (!m.has(x.kind)) m.set(x.kind, []); m.get(x.kind).push(x.id); } return [...m].sort((a, b) => Object.keys(KL).indexOf(a[0]) - Object.keys(KL).indexOf(b[0])); };
     const carOn = (d.shown.home || []).includes("cams"), motion = p.rooms.flatMap(r => r.ents.motion.map(e => ({ id: e.id, title: name(hass, e), room: r.name })));
+    const camItem = id => { const s = hass.states[id], c = get(id), ks = kindsOf(id), allOn = ids => ids.every(i => c.popup.includes(i));
+      return { id, on: c.carousel, body: html`<div class="wzcm"><button class="wzcmh" @click=${() => setCam(id, { carousel: !c.carousel })}><ha-icon icon="mdi:cctv"></ha-icon><span>${s.attributes.friendly_name || id}</span><em>${c.carousel ? t("In carrousel") : t("Niet in carrousel")}</em></button>
+        ${ks.length ? capchips(t("Pop-up bij"), ks.map(([k, ids]) => chip(KL[k], allOn(ids), () => setCam(id, { popup: allOn(ids) ? c.popup.filter(i => !ids.includes(i)) : [...new Set([...c.popup, ...ids])] }), { title: ids.join(", ") }))) : html`<div class="wzcap"><span>${t("Pop-up bij")}</span><small>${t("geen herkenning gevonden")}</small></div>`}</div>` }; };
     stations.push({ title: t("Camera's en beweging"), sub: t("Per camera: opnemen in de carrousel en kiezen bij welke herkenning een pop-up opent."), icon: "mdi:cctv", tag: t("Per camera en melder"),
       left: cams.length ? html`${box(html`<ul class="wzl">${rowi({ icon: "mdi:view-carousel-outline", title: t("Cameracarrousel"), sub: t("Eén grote kaart, wisselt om de 3 seconden; vegen kan ook."), on: carOn, state: carOn ? t("Aan") : t("Uit"), click: () => upShown("home", toggle(d.shown.home || [], "cams")) })}</ul>`, { sel: !!carOn && f === "carousel" })}
-        ${cams.map(s => { const c = get(s.entity_id), det = camDetections(hass, s.entity_id), id = s.entity_id;
-          return box(html`<ul class="wzl">${rowi({ icon: "mdi:cctv", title: s.attributes.friendly_name || id, on: c.carousel, state: c.carousel ? t("In carrousel") : t("Niet in carrousel"), click: () => setCam(id, { carousel: !c.carousel }) })}</ul>
-            ${det.length ? capchips(t("Pop-up bij"), det.map(x => chip(KL[x.kind], c.popup.includes(x.id), () => setCam(id, { popup: toggle(c.popup, x.id) }), { title: x.id }))) : html`<div class="wzcap"><span>${t("Pop-up bij")}</span><small>${t("geen herkenning gevonden")}</small></div>`}`, { sel: f === id, off: !c.carousel }); })}
+        <div class="wzh">${t("Volgorde in de carrousel")}<small>${t("Rij slepen of de pijlen gebruiken. De camera's verschijnen in deze volgorde.")}</small></div>
+        ${sortable(order.map(camItem), l => upd({ cams: l.map(get) }, { focus: f }), { cls: "wzcams" })}
         ${motion.length ? box(capchips(t("Bewegingsmelders"), motion.map(m => chip(m.title, d.banner.includes(m.id), () => upd({ banner: toggle(d.banner, m.id) }), { title: m.room })))) : nothing}
         ${note(t("De melding „Beweging in …” bovenaan verschijnt voor de gekozen bewegingsmelders."))}`
         : html`${note(t("Geen camera's gevonden."))}`,
       right: html`${rt(t("Voorvertoning · startpagina"), t("Toont: {n}", { n: t("Carrousel") }))}
-        <div class="wzpv">${stage(pv, { ring: ["cams"], h: mobile() ? undefined : 760 })}</div>
+        <div class="wzpv">${stage(pv, { only: ["cams"], h: mobile() ? undefined : 760 })}</div>
         ${note(t("De afbeelding wisselt elke 3 seconden naar de volgende camera; de rode stip pulseert zodat duidelijk is dat het live is. Naar links of rechts vegen springt direct verder."))}
-        ${cams.some(s => s.entity_id === f) ? html`${rt(t("Pop-up bij herkenning"))}${popBox(pv, { type: "camera", s: hass.states[f] })}` : nothing}` }); }
+        ${camIds.includes(f) ? html`${rt(t("Pop-up bij herkenning"))}${popBox(pv, { type: "camera", s: hass.states[f] })}` : nothing}` }); }
 
   /* ---- 6 · Devices per room ---- */
   { const sel = d.rooms.filter(id => hass.areas?.[id]), cur = pop.room && sel.includes(pop.room) ? pop.room : sel[0], r = pv.rooms.find(x => x.id === cur), idx = sel.indexOf(cur);
     const sh = d.shown[cur] || [], cats = r ? roomCats(p, r) : [], src = d.sources[cur] || {};
-    const setSrc = (k, v) => upd({ sources: { ...d.sources, [cur]: { ...src, [k]: v } } });
-    const status = id => { const rr = pv.rooms.find(x => x.id === id), all = rr ? roomCats(p, rr).flatMap(c => c.items.map(i => i.key)) : []; const n = (d.shown[id] || []).filter(k => all.includes(k)).length; return all.length ? (n ? String(n) : "–") : "·"; };
-    const sec = (title, n, body) => html`<div class="wzsec"><div class="wzsh"><span>${title}</span><span>${n}</span></div>${body}</div>`;
-    const srcSec = (k, title, list) => list.length ? sec(title, list.length > 1 ? t("kies één bron") : "", html`<div class="chips">${list.map(e => chip(`${name(hass, e)} ${num(e.state?.state) != null ? num(e.state.state).toLocaleString(undefined, { maximumFractionDigits: 1 }) + (e.state.attributes.unit_of_measurement || "") : ""}`, (src[k] || list[0].id) === e.id, () => setSrc(k, e.id), { mark: true, title: e.id }))}${chip(t("geen"), src[k] === "none", () => setSrc(k, "none"), { mark: true })}</div>`) : nothing;
+    const grps = d.groups.filter(g => g.room === cur), gk = g => "group:" + g.id, inGrp = new Map(grps.flatMap(g => g.members.map(m => [m, g])));
+    const lightItems = cats.find(c => c.k === "lights")?.items || [];
+    const cat = cats.some(c => c.k === pop.cat) || ["temp", "hum", "lux"].includes(pop.cat) ? pop.cat : cats[0]?.k, catTitle = cats.find(c => c.k === cat)?.title || { temp: t("Temperatuur"), hum: t("Luchtvochtigheid"), lux: t("Helderheid") }[cat] || "";
+    const setSrc = (k, v) => upd({ sources: { ...d.sources, [cur]: { ...src, [k]: v } } }, { cat: k });
+    const upShownC = (key, list, k) => upd({ shown: { ...d.shown, [key]: list } }, { cat: k });
+    const setGroups = (groups, shown) => upd({ groups, shown: { ...d.shown, [cur]: shown } }, { cat: "lights" });
+    const recKeys = () => [...cats.flatMap(c => c.items.filter(i => !i.dup && !inGrp.has(i.key)).map(i => i.key)), ...grps.filter(g => g.members.length).map(gk)];
+    const status = id => { const rr = pv.rooms.find(x => x.id === id), all = rr ? roomCats(p, rr).flatMap(c => c.items.map(i => i.key)) : []; const n = (d.shown[id] || []).filter(k => all.includes(k)).length + d.groups.filter(g => g.room === id).reduce((a, g) => a + g.members.length, 0); return all.length ? (n ? String(n) : "–") : "·"; };
+    const sec = (title, n, body, k) => html`<div class=${classMap({ wzsec: true, foc: cat === k })} @click=${e => { if (k !== cat && !e.target.closest("button,input")) p.openPopup({ ...pop, draft: d, cat: k }); }}><div class="wzsh"><span>${title}</span><span>${n}</span></div>${body}</div>`;
+    const srcSec = (k, title, list) => list.length ? sec(title, list.length > 1 ? t("kies één bron") : "", html`<div class="chips">${list.map(e => chip(`${name(hass, e)} ${num(e.state?.state) != null ? num(e.state.state).toLocaleString(undefined, { maximumFractionDigits: 1 }) + (e.state.attributes.unit_of_measurement || "") : ""}`, (src[k] || list[0].id) === e.id, () => setSrc(k, e.id), { mark: true, title: e.id }))}${chip(t("geen"), src[k] === "none", () => setSrc(k, "none"), { mark: true })}</div>`, k) : nothing;
+    // lamp groups: one card for several lamps (the panel's own group card); a lamp is in one group at most and then has no card of its own
+    const addGroup = () => { const g = { id: "grp" + Date.now().toString(36), name: `${rname(d, hass, cur)} - ${t("Groep")} ${grps.length + 1}`, icon: "mdi:lightbulb-group-outline", members: [], style: "tiles", room: cur }; setGroups([...d.groups, g], [...sh, gk(g)]); };
+    const delGroup = g => setGroups(d.groups.filter(x => x.id !== g.id), [...sh.filter(k => k !== gk(g)), ...g.members.filter(m => lightItems.some(i => i.key === m) && !sh.includes(m))]);
+    const toggleMember = (g, id) => { const isM = g.members.includes(id);
+      setGroups(d.groups.map(x => x.id === g.id ? { ...x, members: isM ? x.members.filter(m => m !== id) : [...x.members, id] } : !isM && x.members.includes(id) ? { ...x, members: x.members.filter(m => m !== id) } : x), isM ? (sh.includes(id) ? sh : [...sh, id]) : sh.filter(k => k !== id)); };
+    const groupUi = () => html`${grps.map(g => html`<div class=${classMap({ wzgrp: true, off: !sh.includes(gk(g)) })}>
+        <div class="wzgh"><ha-icon icon="mdi:lightbulb-group-outline"></ha-icon><input type="text" .value=${g.name || ""} placeholder=${t("Naam van de groep")} @change=${e => setGroups(d.groups.map(x => x.id === g.id ? { ...x, name: e.target.value } : x), sh)}>
+          <button class="wzarr" title=${t("Groep verwijderen")} @click=${() => delGroup(g)}><ha-icon icon="mdi:delete-outline"></ha-icon></button></div>
+        <div class="wzcap"><span>${t("Lampen in de groep")}</span></div>
+        <div class="chips">${lightItems.map(i => chip(html`${i.title}${inGrp.get(i.key) && inGrp.get(i.key) !== g ? html` <small class="wzgl">${inGrp.get(i.key).name}</small>` : nothing}`, g.members.includes(i.key), () => toggleMember(g, i.key), { mark: true, title: i.key }))}</div>
+        <div class="wzcap"><span>${t("Weergave")}</span><div class="chips">${chip(t("Op de pagina"), sh.includes(gk(g)), () => setGroups(d.groups, toggle(sh, gk(g))))}${["tiles", "list"].map(st => chip(st === "tiles" ? t("Tegels") : t("Lijst"), (g.style || "tiles") === st, () => setGroups(d.groups.map(x => x.id === g.id ? { ...x, style: st } : x), sh)))}</div></div></div>`)}
+      <button class="wzadd" @click=${addGroup}><ha-icon icon="mdi:plus"></ha-icon>${t("Lampengroep maken")}</button>
+      ${grps.length ? nothing : html`<div class="wznote">${t("Een groep toont meerdere lampen op één kaart: tikken op een tegel schakelt die ene lamp, tikken op de kaart opent de lijst met alles aan/uit.")}</div>`}`;
+    const keysOfCat = () => { const c = cats.find(x => x.k === cat); return c ? [...c.items.map(i => i.key), ...(c.k === "lights" ? grps.map(gk) : [])] : []; };
     stations.push({ title: t("Welke apparaten horen in de kamer?"), sub: t("Alle passende apparaten van de kamer staan per soort op een rij. Wit is gekozen. Technische items zijn verborgen."), icon: "mdi:devices", tag: t("Per kamer, alles in één venster"), wide: true,
-      left: html`<ul class="wzl wzrooms">${sel.map(id => html`<li class=${classMap({ on: id === cur, tap: true })} @click=${() => p.openPopup({ ...pop, draft: d, room: id })}><div>${rname(d, hass, id)}</div><span class="st">${status(id)}</span></li>`)}</ul>`,
-      mid: r ? html`<div class="chips"><button @click=${() => upShown(cur, cats.flatMap(c => c.items.filter(i => !i.dup).map(i => i.key)))}>${t("Aanbeveling overnemen")}</button><button @click=${() => upShown(cur, [])}>${t("Alles uit")}</button></div>
-        ${cats.filter(c => c.k !== "more" || c.items.length).map(c => sec(c.title, t("{n} van {m}", { n: c.items.filter(i => sh.includes(i.key)).length, m: c.items.length }), html`<div class="chips">${c.items.map(i => chip(html`${i.group ? html`<small class="wzgl">${t("Groep")}</small> ` : nothing}${i.title}`, sh.includes(i.key), () => upShown(cur, toggle(sh, i.key)), { title: i.key }))}</div>`))}
+      left: html`<ul class="wzl wzrooms">${sel.map(id => html`<li class=${classMap({ on: id === cur, tap: true })} @click=${() => p.openPopup({ ...pop, draft: d, room: id, cat: undefined })}><div>${rname(d, hass, id)}</div><span class="st">${status(id)}</span></li>`)}</ul>`,
+      mid: r ? html`<div class="chips"><button @click=${() => upShownC(cur, recKeys(), cat)}>${t("Aanbeveling overnemen")}</button><button @click=${() => upShownC(cur, [], cat)}>${t("Alles uit")}</button></div>
+        ${cats.filter(c => c.k !== "more" || c.items.length).map(c => sec(c.title, t("{n} van {m}", { n: c.items.filter(i => sh.includes(i.key) || inGrp.has(i.key)).length, m: c.items.length }), html`<div class="chips">${(c.k === "lights" ? c.items.filter(i => !inGrp.has(i.key)) : c.items).map(i => chip(html`${i.group ? html`<small class="wzgl">${t("Groep")}</small> ` : nothing}${i.title}`, sh.includes(i.key), () => upShownC(cur, toggle(sh, i.key), c.k), { title: i.key }))}</div>${c.k === "lights" && c.items.length > 1 ? groupUi() : nothing}`, c.k))}
         ${srcSec("temp", t("Temperatuur"), r.ents.temp)}${srcSec("hum", t("Luchtvochtigheid"), r.ents.hum)}${srcSec("lux", t("Helderheid"), r.ents.lux)}
         ${note(t("Technische items (linkkwaliteit, update, batterij …) zijn verborgen."))}` : html`${note(t("Kies eerst kamers bij station 3."))}`,
-      right: r ? html`${rt(t("Voorvertoning · kamer"), r.name)}<div class="wzpv">${stage(pv, { room: r })}</div>
+      right: r ? html`${rt(t("Voorvertoning · kamer"), `${r.name} · ${catTitle}`)}<div class="wzpv">${stage(pv, { room: r, only: keysOfCat(), fallback: false })}</div>
         ${note(t("Heb je twee temperatuursensoren in de kamer (bijvoorbeeld in de bewegingsmelder en een aparte), dan kies je hier welke telt. Hetzelfde geldt voor luchtvochtigheid en helderheid."))}
-        <div class="modes n2">${idx > 0 ? html`<button @click=${() => p.openPopup({ ...pop, draft: d, room: sel[idx - 1] })}>${t("Vorige kamer")}</button>` : html`<span></span>`}${idx < sel.length - 1 ? html`<button class="on" @click=${() => p.openPopup({ ...pop, draft: d, room: sel[idx + 1] })}>${t("Volgende kamer")}: ${rname(d, hass, sel[idx + 1])}</button>` : html`<span></span>`}</div>` : nothing }); }
+        <div class="modes n2">${idx > 0 ? html`<button @click=${() => p.openPopup({ ...pop, draft: d, room: sel[idx - 1], cat: undefined })}>${t("Vorige kamer")}</button>` : html`<span></span>`}${idx < sel.length - 1 ? html`<button class="on" @click=${() => p.openPopup({ ...pop, draft: d, room: sel[idx + 1], cat: undefined })}>${t("Volgende kamer")}: ${rname(d, hass, sel[idx + 1])}</button>` : html`<span></span>`}</div>` : nothing }); }
 
   /* ---- 7 · Status ---- */
   { const f = pop.focus || "lights", PL = { lights: [t("Lampen"), t("Telt de lampen; tikken opent het venster met alle lampen."), "mdi:lightbulb-outline"], doors: [t("Deuren en ramen"), t("Toont wat open staat; tikken opent de lijst."), "mdi:door"], attention: [t("Aandacht"), t("Verzamelt problemen: batterijen, updates, apparaten offline."), "mdi:alert-circle-outline"] };

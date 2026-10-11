@@ -526,7 +526,7 @@ export function camCarouselCard(p, cams) {
   const items = cams.map(s => { const un = unavailable(s);
     return { id: s.entity_id, name: cardCfg(p, s.entity_id).name || s.attributes.friendly_name || s.entity_id, src: s.attributes.entity_picture || null, stream: camStream(s), unavailable: un,
       sub: un ? t("Onbereikbaar") : s.state === "recording" ? t("Neemt op") : s.state === "streaming" ? t("Live") : t("Camera"), offline: t("Onbereikbaar"), liveLabel: t("Live") }; });
-  return html`<div class="card cam carousel"><hcn-cam-carousel .cams=${items} @cam-open=${e => p.openPopup({ type: "camera", s: cams[e.detail.index] })}></hcn-cam-carousel></div>`;
+  return html`<div class="card cam carousel"><hcn-cam-carousel .cams=${items} .live=${!p.preview} @cam-open=${e => p.openPopup({ type: "camera", s: cams[e.detail.index] })}></hcn-cam-carousel></div>`;
 }
 
 /* ---------- home cards: [{ key, label, tpl }] so the page config can hide/reorder them ---------- */
@@ -544,7 +544,7 @@ export function homeCards(p, h) {
   if (p.config.curated || p.config.home?.sumTiles) for (const k of SUM_KINDS) { const d = sumData(p, h, k); if (d.all.length) add("sum:" + k, d.title, sumCard(p, d)); }
   if (h.camCarousel.length) add("cams", t("Camera's"), camCarouselCard(p, h.camCarousel));
   const heroWx = h.weather && (p.config.home?.wxMobile || !matchMedia("(max-width:900px)").matches);
-  if (h.weather && (p.config.home?.weatherCard || !heroWx)) { const w = h.weather, days = (p.wx?.daily || []).slice(1, 3), dayName = f => new Date(f.datetime).toLocaleDateString(locale(), { weekday: "short" }).replace(".", "");
+  if (h.weather && (p.config.home?.weatherCard || !heroWx || (p.config.curated && p.pageCfg?.("home").shown?.includes("weather")))) { const w = h.weather, days = (p.wx?.daily || []).slice(1, 3), dayName = f => new Date(f.datetime).toLocaleDateString(locale(), { weekday: "short" }).replace(".", "");
     const expect = wxExpect(p, true);
     add("weather", t("Weer"), html`<div class=${classMap({ card: true, hassub: days.length > 0 })} ${pressDir(p, { tap: () => p.openPopup({ type: "weather" }) })}>
     <div class="i">${ico(condIcon(w.state), condSvg(w.state))}</div>

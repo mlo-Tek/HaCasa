@@ -19,6 +19,9 @@ const entityOf = pop => pop.e?.id || pop.s?.entity_id || pop.st?.id || pop.a?.id
 const hbtns = (p, pop) => html`<span class="hb">${entityOf(pop) ? html`<button title=${t("Opties")} @click=${() => p.openPopup({ ...pop, menu: !pop.menu, form: false })}><ha-icon icon="mdi:dots-horizontal"></ha-icon></button>` : nothing}<button data-close title=${t("Sluiten")}><img src=${icon("close")} alt="sluiten" data-close></button></span>`;
 const li = (mdi, label, value, { on = false, sub = "", onclick = null, svg = null, img = null } = {}) =>
   html`<li class="${on ? "on" : ""} ${onclick ? "tap" : ""}" @click=${onclick || nothing}>${img ? html`<img class="avatar" src=${img} alt="">` : svg ? html`<img class="ico" src=${icon(svg)} alt="">` : html`<ha-icon icon=${mdi}></ha-icon>`}<div>${label}${sub ? html`<small>${sub}</small>` : nothing}</div><span class="st">${value}</span></li>`;
+/** a label with a lighter suffix behind it ("PV-Erzeugung aktuell"): the kind of value in the normal weight, the time frame fainter */
+const NOW = () => t("actueel"), TODAY = () => t("vandaag");
+const fl = (base, sfx) => html`${base} <span class="sfx">${sfx()}</span>`;
 const range = (label, v, oninput, { min = 0, max = 100, unit = "%" } = {}) =>
   html`<div class="prow"><span>${label}</span><b>${v}${unit}</b><input type="range" min=${min} max=${max} .value=${String(v)} @change=${e => oninput(+e.target.value)}></div>`;
 const modes = (items, cls = "") => html`<div class="modes ${cls}">${items.map(m => html`<button class=${m.on ? "on" : ""} @click=${m.go}>${m.label}</button>`)}</div>`;
@@ -358,8 +361,8 @@ export function renderPopup(p, pop) {
     case "energy": {
       const en = home.energy, r = (s, u) => s ? `${num(s.state)?.toLocaleString(locale())} ${u}` : "–";
       if (en.today && pop.hourly === undefined) p.loadHourly(pop);
-      return wrap(t("Energie"), r(en.power, "W"), t("Nu"), html`${en.today ? html`<div class="prow" style="margin-top:6px"><span>${t("Vandaag per uur")}</span><b>${r(en.today, "kWh")}</b></div>${bars(pop.hourly === undefined ? null : pop.hourly)}` : nothing}<ul>${[["mdi:solar-power-variant-outline", t("Zonne-opbrengst"), en.pv, "W"], ["mdi:transmission-tower-import", t("Van het net"), en.import, "W"], ["mdi:transmission-tower-export", t("Naar het net"), en.export, "W"], ["mdi:battery-outline", t("Batterij"), en.battery, "%"], ["mdi:battery-charging-outline", t("Batterij vermogen"), en.batteryPower, "W"],
-        ["mdi:home-import-outline", t("Verbruik vandaag"), en.today, "kWh"], ["mdi:solar-power", t("Opbrengst vandaag"), en.pvToday, "kWh"], ["mdi:transmission-tower-import", t("Van het net vandaag"), en.importToday, "kWh"], ["mdi:solar-power-variant-outline", t("Teruggeleverd"), en.returned, "kWh"], ["mdi:fire", t("Gas"), en.gas, "m³"]]
+      return wrap(t("Energie"), r(en.power, "W"), t("Nu"), html`${en.today ? html`<div class="prow" style="margin-top:6px"><span>${t("Vandaag per uur")}</span><b>${r(en.today, "kWh")}</b></div>${bars(pop.hourly === undefined ? null : pop.hourly)}` : nothing}<ul>${[["mdi:solar-power-variant-outline", fl(t("Zonne-opbrengst"), NOW), en.pv, "W"], ["mdi:transmission-tower-import", fl(t("Van het net"), NOW), en.import, "W"], ["mdi:transmission-tower-export", fl(t("Naar het net"), NOW), en.export, "W"], ["mdi:battery-outline", fl(t("Batterij"), NOW), en.battery, "%"], ["mdi:battery-charging-outline", fl(t("Batterij vermogen"), NOW), en.batteryPower, "W"],
+        ["mdi:home-import-outline", fl(t("Verbruik"), TODAY), en.today, "kWh"], ["mdi:solar-power", fl(t("Opbrengst"), TODAY), en.pvToday, "kWh"], ["mdi:transmission-tower-import", fl(t("Van het net"), TODAY), en.importToday, "kWh"], ["mdi:transmission-tower-export", fl(t("Naar het net"), TODAY), en.returned, "kWh"], ["mdi:fire", t("Gas"), en.gas, "m³"]]
         .filter(([, , s]) => s).map(([ic, lb, s, u]) => li(ic, lb, r(s, u), { onclick: () => p.moreInfo(s.entity_id) }))}</ul>`);
     }
     case "camera": {
