@@ -29,3 +29,7 @@ The look of HaCasa Nova is based on [Homio](https://github.com/iamtherufus/Homio
 ## Lit
 
 The bundled `dist/hacasa-nova.js` includes [Lit](https://lit.dev) (BSD-3-Clause, Google LLC). Its license notice is kept at the end of that file.
+
+## Font
+
+HaCasa Nova ships [Hanken Grotesk](https://github.com/marcologous/hanken-grotesk) (variable weight, Latin subset) inside the bundle, so the panel does not load anything from Google Fonts. Copyright 2021 The Hanken Grotesk Project Authors, licensed under the SIL Open Font License 1.1; the license text is in `src/fonts/OFL.txt`.
