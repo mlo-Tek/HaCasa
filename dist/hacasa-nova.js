@@ -217,7 +217,7 @@ var Hi=Object.defineProperty;var Wi=(n,e,a)=>e in n?Hi(n,e,{enumerable:!0,config
   .popup.wiz .wsearch{width:100%;box-sizing:border-box;margin-top:12px;border:0;border-radius:var(--r-sm);background:rgba(0,0,0,.25);color:#fff;font:inherit;font-size:14px;padding:11px 14px}
   .popup.wiz .prow.hd b{grid-column:1/-1;font-weight:400;opacity:.65;font-size:12px;margin-top:-4px}
   .popup.wiz .likef small{display:block;margin-top:2px}
-  .popup.wiz .likef{margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:center}
+  .popup.wiz .likef{margin-top:12px;display:grid;grid-template-columns:1fr;gap:6px;align-items:center}
   .popup.wiz .plist.rooms li{grid-template-columns:1fr max-content;align-items:center}
   .popup.wiz .plist.rooms .rn{display:grid;gap:6px}
   .popup.wiz .plist.rooms .rn input{border:0;border-radius:8px;background:rgba(0,0,0,.25);color:#fff;font:inherit;font-size:13px;padding:8px 10px;min-width:0}
