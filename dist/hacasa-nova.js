@@ -208,6 +208,7 @@ var ua=Object.defineProperty;var ma=(i,e,n)=>e in i?ua(i,e,{enumerable:!0,config
   .popup.wiz .dots i{width:8px;height:8px;border-radius:50%;background:#fff;opacity:.3}
   .popup.wiz .dots i.on{opacity:1}
   .popup.wiz .modes.n3{grid-template-columns:auto 1fr auto}
+  .popup.wiz .modes.n3 button{padding:14px 22px}
   .popup.wiz .chips{margin-top:14px}
   .popup.wiz .modes button:disabled{opacity:.35;pointer-events:none}
   .popup.wiz .plist{max-height:38vh;overflow:auto;scrollbar-width:none}
