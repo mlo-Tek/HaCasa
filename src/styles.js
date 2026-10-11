@@ -502,7 +502,8 @@ export const styles = css`
     .card .s{font-size:11px;margin-top:2px}
     .card .s.big{font-size:24px;letter-spacing:-1px}
     .card .lbl{font-size:9px;letter-spacing:1.4px;height:24px}
-    .card .lbl.steps button{height:24px;padding:0 8px;font-size:9px}
+    .card .lbl.steps{min-width:0;gap:3px}
+    .card .lbl.steps button{height:24px;padding:0 3px;font-size:9px;letter-spacing:.3px;flex:1 1 auto;min-width:0}   /* the four steps share the room left of the slider instead of running under it */
     .card .lbl.cols button{width:20px;height:20px}
     .card .lbl.bars{padding-top:6px}
     .card.plug .spk{display:none}
@@ -531,8 +532,8 @@ export const styles = css`
     .vslider{width:8px}
     .card .slider b{width:14px;height:14px;margin:-7px 0 0 -7px}
     .card.appl,.card.acts{padding-bottom:calc(var(--cp) + 30px + 6px)}
-    .card.acts .ctl.row button{height:30px;padding:0 10px;font-size:10px}
-    .card.appl .ctl.row button{height:30px;padding:0 10px;font-size:10px}
+    .card.acts .ctl.row button{height:30px;padding:0 8px;gap:5px;font-size:10px;letter-spacing:.5px;flex:0 1 auto;min-width:0}
+    .card.appl .ctl.row button{height:30px;padding:0 8px;gap:5px;font-size:10px;letter-spacing:.5px;flex:0 1 auto;min-width:0}
     .card.appl:not(.plug) .lbl{display:none}   /* phones: the stop / power row takes the bottom line */
     .card.list .s{gap:3px;margin-top:4px}
     .card.list .s span{font-size:11px;gap:6px}
