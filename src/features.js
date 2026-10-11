@@ -114,6 +114,10 @@ export const featureStyles = `
   .popup.wiz .dots i.on{opacity:1}
   .popup.wiz .modes.n3{grid-template-columns:1fr 1fr 1fr}
   .popup.wiz .chips{margin-top:14px}
+  .popup.wiz .modes button:disabled{opacity:.35;pointer-events:none}
+  .popup.wiz .plist{max-height:38vh;overflow:auto;scrollbar-width:none}
+  .popup.wiz .plist li{cursor:pointer}
+  .popup.wiz .plist li small{overflow-wrap:anywhere}
   .popup li img.avatar{width:34px;height:34px;border-radius:50%;object-fit:cover;margin-left:-2px}
   .popup .form.lines .lrow{display:grid;grid-template-columns:150px 1fr max-content;gap:6px;margin-top:4px}
   .popup .form.lines .lrow button,.popup .form.lines .addline{border:0;border-radius:var(--r-sm);background:rgba(255,255,255,.14);color:#fff;font:inherit;font-size:12px;font-weight:700;padding:9px 12px;cursor:pointer}

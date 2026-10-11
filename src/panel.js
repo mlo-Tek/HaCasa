@@ -199,6 +199,14 @@ class HacasaNova extends LitElement {
   async finishWizard(d) {
     const clean = o => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== ""));
     const patch = d ? { ...clean({ language: d.language, title: d.title, roomImage: d.roomImage, homeImage: d.homeImage }), rooms: d.rooms?.length ? d.rooms : undefined, home: { ...(this.userConfig?.home || {}), ...clean({ weather: d.home.weather, climate: d.home.climate, alarm: d.home.alarm }), energy: { ...(this.userConfig?.home?.energy || {}), ...clean(d.home.energy || {}) } }, setupDone: true } : { setupDone: true };
+    if (d?.mode) {   // the guide the person picked: "curated" = only the chosen cards, "auto" = everything that is found
+      patch.curated = d.mode === "curated" ? true : undefined;
+      if (d.mode === "curated") {
+        const pages = { ...(this.userConfig?.pages || {}) }, keep = new Set(["home", ...(d.rooms || [])]);
+        for (const [k, shown] of Object.entries(d.shown || {})) { if (!keep.has(k)) continue; const pg = { ...(pages[k] || {}) }; if (shown.length) pg.shown = shown; else delete pg.shown; if (Object.keys(pg).length) pages[k] = pg; else delete pages[k]; }
+        patch.pages = pages;
+      }
+    }
     await this.saveUser(patch); this.popup = null; if (d) this.showToast(t("Het panel is ingesteld"));
   }
   async savePreset(r, pr) {

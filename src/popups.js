@@ -2,7 +2,7 @@
 import { t, locale } from "./i18n.js";
 import { html, nothing } from "lit";
 import { icon, isOn, unavailable, num, relTime, shortDate, domain } from "./util.js";
-import { name } from "./model.js";
+import { name, buildRooms, deviceName } from "./model.js";
 import { PAGES } from "./pages.js";
 import { keypad, bars } from "./extras.js";
 import { eventWhen, timeline, applianceState } from "./extras2.js";
@@ -38,8 +38,30 @@ const TICKER_KINDS = { home: { update: t("HaCasa-updates"), energy: t("Energie")
 /** sensible wizard defaults: what the panel already detected */
 function wizardDefaults(p) {
   const h = p.config.home || {};
+  const shown = Object.fromEntries(Object.entries(p.config.pages || {}).filter(([, v]) => v.shown?.length).map(([k, v]) => [k, [...v.shown]]));
   return { language: p.config.language, title: p.userConfig?.title, rooms: p.rooms.map(r => r.id), roomImage: p.userConfig?.roomImage, homeImage: p.userConfig?.homeImage,
+    mode: p.config.curated ? "curated" : undefined, shown,   // mode stays empty on the first run: the person has to pick a guide
     home: { weather: p.home?.weather?.entity_id, climate: p.home?.climate?.entity_id, alarm: p.home?.alarm?.entity_id, energy: { power: h.energy?.power, today: h.energy?.today } } };
+}
+/** name of a card as Home Assistant shows it ("Woonkamer - Apple TV") plus the entity id underneath, for the card pickers */
+export function cardTitle(p, c, r) {
+  const st = p.hass.states[c.key], dev = c.key.startsWith("device:") ? c.key.slice(7) : null, ap = r?.ents.appliances.find(a => a.id === c.key);
+  return { title: p.config.cards?.[c.key]?.name || st?.attributes.friendly_name || (dev ? deviceName(p.hass, dev) : c.label), sub: st ? c.key : ap ? ap.key : "" };
+}
+/** the cards the start page can show, whether or not they exist right now (the real list depends on what is playing, open, …) */
+function wizardHomeCards(p, d) {
+  const h = p.home, out = [], add = (key, title, sub = "", hint = "", rec = false) => out.push({ key, title, sub, hint, rec });
+  const climate = d.home.climate || h.climate?.entity_id, weather = d.home.weather || h.weather?.entity_id, power = d.home.energy?.power || h.energy.power?.entity_id;
+  add("climate", t("Thermostaat"), climate || "", climate ? "" : t("Geen apparaat gevonden"), true);
+  add("weather", t("Weer"), weather || "", weather ? "" : t("Geen apparaat gevonden"));
+  add("agenda", t("Agenda"), h.calendars.join(", "), h.calendars.length ? "" : t("Geen agenda's gevonden"));
+  add("waste", t("Afval"), h.waste.map(w => w.entity).join(", "), h.waste.length ? "" : t("Nog niet ingesteld (Panel instellingen › Agenda)"));
+  add("scenes", t("Scènes"), "", h.scenes.length ? "" : t("Geen scènes gevonden"));
+  add("energy", t("Energie"), power || "", power ? "" : t("Geen apparaat gevonden"));
+  add("attention", t("Aandacht"), t("Apparaten, batterijen en automatiseringen"));
+  for (const m of p.rooms.flatMap(r => r.ents.media)) add(m.id, cardTitle(p, { key: m.id, label: "" }).title, m.id, t("alleen als hij speelt"));
+  for (const a of p.rooms.flatMap(r => r.ents.appliances).filter(a => !a.plain)) add(a.id, cardTitle(p, { key: a.id, label: "" }).title, a.key, t("alleen als hij bezig is"));
+  return out;
 }
 function cardForm(p, pop) {
   const id = entityOf(pop), cur = (p.config.cards || {})[id] || {}, draft = pop.draft || { ...cur };
@@ -304,7 +326,7 @@ export function renderPopup(p, pop) {
         </div>
         <div class="prow" style="margin-top:18px"><span>${t("Kaarten")}</span><b>${t("{a} van {b} zichtbaar", { a: all.length - hid.size, b: all.length })}</b></div>
         ${curated ? html`<div class="chips"><button @click=${() => upd({ shown: all.map(c => c.key) })}>${t("Alles aan")}</button><button @click=${() => upd({ shown: [] })}>${t("Alles uit")}</button></div>` : nothing}
-        <ul class="plist">${all.map((c, i) => html`<li class=${hid.has(c.key) ? "off" : ""}><ha-icon icon=${hid.has(c.key) ? "mdi:eye-off-outline" : "mdi:eye-outline"}></ha-icon><div>${c.label}<small>${c.key.includes(".") || c.key.startsWith("device:") ? c.key : ""}</small></div>
+        <ul class="plist">${all.map((c, i) => html`<li class=${hid.has(c.key) ? "off" : ""}><ha-icon icon=${hid.has(c.key) ? "mdi:eye-off-outline" : "mdi:eye-outline"}></ha-icon><div>${cardTitle(p, c, r).title}<small>${cardTitle(p, c, r).sub}</small></div>
           <span class="btns"><button title=${hid.has(c.key) ? t("Tonen") : t("Verbergen")} @click=${() => flip(c.key)}><ha-icon icon=${hid.has(c.key) ? "mdi:eye-outline" : "mdi:eye-off-outline"}></ha-icon></button><button title=${t("Omhoog")} ?disabled=${i === 0} @click=${() => move(i, -1)}>↑</button><button title=${t("Omlaag")} ?disabled=${i === all.length - 1} @click=${() => move(i, 1)}>↓</button></span></li>`)}
           ${!all.length ? html`<li><div>${t("Geen kaarten op deze pagina")}</div></li>` : nothing}</ul>
         <div class="prow" style="margin-top:18px"><span>${t("Meldingenregel")}</span><b>${t("tik om uit/aan te zetten")}</b></div>
@@ -318,15 +340,32 @@ export function renderPopup(p, pop) {
           <button data-close>${t("Annuleren")}</button></div></div>`;
     }
     case "wizard": {
-      const d = pop.draft || wizardDefaults(p), step = pop.step || 0;
+      const d = pop.draft || wizardDefaults(p), step = pop.step || 0, curated = d.mode === "curated";
       const upd = patch => p.openPopup({ ...pop, draft: { ...d, ...patch } });
       const updHome = (k, v) => upd({ home: { ...d.home, [k]: v } }), updEnergy = (k, v) => updHome("energy", { ...(d.home.energy || {}), [k]: v });
       const goStep = s => p.openPopup({ ...pop, draft: d, step: s });
       const areas = Object.values(hass.areas || {}).sort((a, b) => a.name.localeCompare(b.name, "nl"));
+      /** pick the cards of one page: nothing is chosen by default, "Aanbeveling" only on request */
+      const picker = (cards, key) => {
+        const sel = new Set(d.shown[key] || []), setShown = list => upd({ shown: { ...d.shown, [key]: list } });
+        const flip = k => setShown(sel.has(k) ? [...sel].filter(x => x !== k) : [...sel, k]);
+        return html`<div class="prow" style="margin-top:18px"><span>${t("Kaarten")}</span><b>${t("{a} van {b} gekozen", { a: cards.filter(c => sel.has(c.key)).length, b: cards.length })}</b></div>
+          <div class="chips"><button @click=${() => setShown(cards.filter(c => c.rec).map(c => c.key))}>${t("Aanbeveling overnemen")}</button><button @click=${() => setShown(cards.map(c => c.key))}>${t("Alles aan")}</button><button @click=${() => setShown([])}>${t("Alles uit")}</button></div>
+          <ul class="plist">${cards.map(c => html`<li class=${sel.has(c.key) ? "" : "off"} @click=${() => flip(c.key)}><ha-icon icon=${sel.has(c.key) ? "mdi:eye-outline" : "mdi:eye-off-outline"}></ha-icon><div>${c.title}<small>${[c.sub, c.hint].filter(Boolean).join(" · ")}</small></div>
+            <span class="btns"><button title=${sel.has(c.key) ? t("Verbergen") : t("Tonen")}><ha-icon icon=${sel.has(c.key) ? "mdi:eye-outline" : "mdi:eye-off-outline"}></ha-icon></button></span></li>`)}
+            ${!cards.length ? html`<li><div>${t("Geen kaarten op deze pagina")}</div></li>` : nothing}</ul>`;
+      };
+      const roomStep = id => ({ room: true, title: areas.find(a => a.area_id === id)?.name || id, body: () => {
+        const r = buildRooms(hass, { ...p.config, rooms: d.rooms }).find(x => x.id === id);
+        const cards = r ? p.roomCards(r).map(c => ({ key: c.key, ...cardTitle(p, c, r), rec: c.key.startsWith("light.") || c.key.startsWith("climate.") })) : [];
+        return html`<div class="sub">${t("Kies welke kaarten in deze kamer staan. Standaard is niets gekozen.")}</div>${picker(cards, id)}`; } });
       const steps = [
-        { title: t("Welkom"), body: html`<div class="sub">${t("In vier stappen staat het panel klaar. Alles is later aan te passen bij Panel instellingen.")}</div><div class="form">
+        { title: t("Welkom"), body: html`<div class="sub">${d.mode === "auto" ? t("In vier stappen staat het panel klaar. Alles is later aan te passen bij Panel instellingen.") : t("Alles is later aan te passen bij Panel instellingen.")}</div><div class="form">
             ${field(t("Taal"), html`<select @change=${e => { upd({ language: e.target.value || undefined }); }}><option value="" ?selected=${!d.language}>${t("automatisch (taal van Home Assistant)")}</option>${Object.entries(LANGUAGES).map(([k, l]) => html`<option value=${k} ?selected=${d.language === k}>${l}</option>`)}</select>`)}
-            ${field(t("Titel"), text(d.title, v => upd({ title: v || undefined }), t("Thuis") + "."), t("linksboven in de navigatie"))}</div>` },
+            ${field(t("Titel"), text(d.title, v => upd({ title: v || undefined }), t("Thuis") + "."), t("linksboven in de navigatie"))}</div>
+          <div class="prow" style="margin-top:18px"><span>${t("Hoe wil je instellen?")}</span><b></b></div>
+          <ul>${li("mdi:auto-fix", t("Automatisch"), d.mode === "auto" ? "✓" : "", { on: d.mode === "auto", sub: t("alle gevonden apparaten verschijnen vanzelf"), onclick: () => upd({ mode: "auto" }) })}
+            ${li("mdi:cursor-default-click-outline", t("Zelf kiezen"), curated ? "✓" : "", { on: curated, sub: t("niets verschijnt vanzelf; jij kiest per kamer welke kaarten er staan"), onclick: () => upd({ mode: "curated" }) })}</ul>` },
         { title: t("Kamers"), body: html`<div class="sub">${t("Kies de ruimtes die als kamer in de navigatie komen. De volgorde pas je later aan bij Kamers.")}</div>
             <div class="chips">${areas.map(a => { const on = d.rooms.includes(a.area_id); return html`<button class=${on ? "on" : ""} @click=${() => upd({ rooms: on ? d.rooms.filter(x => x !== a.area_id) : [...d.rooms, a.area_id] })}>${a.name}</button>`; })}</div>
             ${!areas.length ? html`<div class="sub" style="margin-top:12px">${t("Geen ruimtes gevonden. Maak eerst ruimtes aan in Home Assistant en wijs apparaten toe.")}</div>` : nothing}` },
@@ -336,17 +375,19 @@ export function renderPopup(p, pop) {
             ${field(t("Alarm"), select(hass, "alarm_control_panel", d.home.alarm, v => updHome("alarm", v), { empty: t("geen") }))}
             ${field(t("Vermogen"), select(hass, "sensor", d.home.energy?.power, v => updEnergy("power", v), { empty: t("geen"), filter: s => s.attributes.unit_of_measurement === "W" }), "W")}
             ${field(t("Verbruik vandaag"), select(hass, "sensor", d.home.energy?.today, v => updEnergy("today", v), { empty: t("geen"), filter: s => s.attributes.unit_of_measurement === "kWh" }), "kWh")}</div>` },
+        ...(curated ? [{ title: t("Kaarten op de startpagina"), body: () => html`<div class="sub">${t("Kies welke kaarten bovenaan de startpagina staan. Standaard is niets gekozen.")}</div>${picker(wizardHomeCards(p, d), "home")}` }] : []),
+        ...(curated ? d.rooms.filter(id => areas.some(a => a.area_id === id)).map(roomStep) : []),
         { title: t("Foto's"), body: html`<div class="sub">${t("Een foto per kamer als achtergrond; {slug} wordt de kamernaam (bv. woonkamer.jpg). Zonder foto krijgt elke kamer een rustige kleurverloop. Per kamer aanpassen kan later via de paginainstellingen.", { slug: "{slug}" })}</div><div class="form">
             ${field(t("Kamerfoto"), text(d.roomImage, v => upd({ roomImage: v || undefined }), "/local/images/rooms/{slug}.jpg"))}
             ${field(t("Foto startpagina"), text(d.homeImage, v => upd({ homeImage: v || undefined }), "/local/images/rooms/home.jpg"))}</div>` },
       ];
-      const last = step === steps.length - 1;
-      return html`<div class="popup wide wiz"><h2>${t("Installatie")} · ${step + 1}/${steps.length}</h2><div class="big">${steps[step].title}</div>
-        ${steps[step].body}
+      const cur = steps[Math.min(step, steps.length - 1)], last = step >= steps.length - 1, blocked = step === 0 && !d.mode;
+      return html`<div class="popup wide wiz"><h2>${t("Installatie")} · ${step + 1}/${steps.length}</h2><div class="big">${cur.title}</div>
+        ${typeof cur.body === "function" ? cur.body() : cur.body}
         <div class="wfoot"><span class="dots">${steps.map((_, i) => html`<i class=${i === step ? "on" : ""}></i>`)}</span>
           <div class="modes n3">${step > 0 ? html`<button @click=${() => goStep(step - 1)}>${t("Terug")}</button>` : html`<button @click=${() => p.finishWizard(null)}>${t("Overslaan")}</button>`}
             <span></span>
-            <button class="on" @click=${() => last ? p.finishWizard(d) : goStep(step + 1)}>${last ? t("Klaar") : t("Volgende")}</button></div></div></div>`;
+            <button class="on" ?disabled=${blocked} @click=${() => last ? p.finishWizard(d) : goStep(step + 1)}>${last ? t("Klaar") : t("Volgende")}</button></div></div></div>`;
     }
     case "confirm":
       return html`<div class="popup"><h2>${pop.title || t("Bevestigen")} ${hbtns(p, pop)}</h2><div class="big">${pop.big}</div><div class="sub confirm-text">${pop.sub || ""}</div>
