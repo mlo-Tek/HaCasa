@@ -5,6 +5,7 @@ import { LitElement, html, nothing } from "lit";
 import { classMap } from "lit/directives/class-map.js";
 import { keyed } from "lit/directives/keyed.js";
 import { styles } from "./styles.js";
+import fontUrl from "./fonts/hanken-grotesk.woff2";
 import { buildRooms, buildHome, name } from "./model.js";
 import { lightCard, switchCard, mediaCard, coverCard, climateCard, sensorCard, stripCard, fanCard, lockCard, vacuumCard, humidifierCard, roomScenesCard, roomCameraCard, applianceCard, templateCard, homeCards, condText, condIcon, condSvg, wasteSentence, ico, wxExpect, groupCard } from "./cards.js";
 import { renderPopup } from "./popups.js";
@@ -29,7 +30,9 @@ const brandTitle = s => html`<span class="bt">${s}</span>`;
 
 const eventWhenShort = ev => ev.allDay ? t("hele dag") : ev.start.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
 const BUILD = Math.floor(Date.now() / 3600000).toString(36);   // changes every hour: replaced photos show up after a reload
-const FONT = "https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap";
+// Hanken Grotesk ships inside the bundle (variable font, Latin subset, 400-700): no request to Google Fonts, works offline.
+// @font-face has to live in the document, not in the shadow root.
+const FONT_CSS = `@font-face{font-family:"Hanken Grotesk";font-style:normal;font-weight:400 700;font-display:swap;src:url(${fontUrl}) format("woff2")}`;
 const DEFAULT_CONFIG = { rooms: "auto", roomImage: "/local/images/rooms/{slug}.jpg", homeImage: "/local/images/rooms/home.jpg", maxRooms: 9, home: {}, more: [] };
 
 class HacasaNova extends LitElement {
@@ -44,7 +47,7 @@ class HacasaNova extends LitElement {
     super();
     this.config = DEFAULT_CONFIG; this.popup = null; this.search = ""; this.drawer = false; this.tick = 0; this.now = clock(); this.notifications = []; this.idle = false;
     this._drag = 0;
-    if (!document.querySelector(`link[href="${FONT}"]`)) { const l = document.createElement("link"); l.rel = "stylesheet"; l.href = FONT; document.head.appendChild(l); }
+    if (!document.getElementById("hacasa-nova-font")) { const f = document.createElement("style"); f.id = "hacasa-nova-font"; f.textContent = FONT_CSS; document.head.appendChild(f); }
   }
 
   connectedCallback() {

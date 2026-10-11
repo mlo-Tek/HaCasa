@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Font bundled:** Hanken Grotesk is now part of `hacasa-nova.js` (about 25 KB). The panel no longer requests it from Google Fonts, so it also looks right offline and without sending your IP address to a third party.
+
 ## 3.0.5
 
 - **Update notice:** when a new HaCasa Nova is out, administrators see it in the notification row on the home page. Tap it for the changelog and an Install button (Home Assistant's update dialog, from HACS). Installs without HACS check GitHub instead, at most twice a day. Can be turned off under Panel settings → General → Check for updates.

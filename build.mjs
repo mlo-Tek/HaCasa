@@ -1,5 +1,5 @@
 // Bundles src/panel.js into one self-contained file, dist/hacasa-nova.js (HACS serves a single file),
-// with the SVG icons from icons/ inlined as data: URLs. Also writes version.json for cache-busting.
+// with the SVG icons from icons/ and the Hanken Grotesk font from src/fonts/ inlined as data: URLs. Also writes version.json for cache-busting.
 // `node build.mjs --watch` rebuilds on change.
 // `node build.mjs --dev` builds the dev variant into dist-dev/hacasa-nova-dev.js: element <hacasa-nova-dev>,
 // card custom:hacasa-nova-dev-card and its own settings key, so it runs next to the HACS install.
@@ -50,6 +50,7 @@ const ctx = await esbuild.context({
   outfile: `${outdir}/${name}.js`,
   legalComments: "eof",
   banner: { js: `/*! HaCasa Nova ${version} · MIT · https://github.com/damianeickhoff/HaCasa */` },
+  loader: { ".woff2": "dataurl" },
   plugins: [icons, stamp],
 });
 
